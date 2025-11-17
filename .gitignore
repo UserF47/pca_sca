@@ -1,0 +1,15 @@
+--- CLion / CMake ---
+
+Ignore all build directories
+
+cmake-build-debug/
+cmake-build-release/
+
+Ignore CMake user files
+
+.idea/
+CMakeUser*.txt
+
+--- macOS ---
+
+.DS_Store
