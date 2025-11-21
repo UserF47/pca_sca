@@ -24,13 +24,22 @@ add_executable(gen_data
         UnitCube.h
         PolytopeOps.h
         ITree.h
+        test_polytope.cpp
 )
 
 # --- Target 2: The Main Research Application ---
-add_executable(pca_sca
-        main.cpp
+#add_executable(pca_sca
+#        main.cpp
+#        PolytopeStructs.h
+#        UnitCube.h
+#        PolytopeOps.h
+#        ITree.h       # <--- Updated
+#)
+
+# --- Target 3: The Test Playground ---
+# Create a file named 'test_polytope.cpp' to use this!
+add_executable(test_runner
+        test_polytope.cpp    # <--- Your new test file
         PolytopeStructs.h
-        UnitCube.h
         PolytopeOps.h
-        ITree.h       # <--- Updated
 )
