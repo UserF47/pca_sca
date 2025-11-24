@@ -20,17 +20,31 @@ endif()
 add_executable(gen_data
         generator.cpp
         DataGenerator.cpp
-        PolytopeStructs.h
-        UnitCube.h
-        PolytopeOps.h
-        ITree.h
 )
 
 # --- Target 2: The Main Research Application ---
-add_executable(pca_sca
-        main.cpp
+#add_executable(pca_sca
+#        main.cpp
+#        PolytopeStructs.h
+#        UnitCube.h
+#        PolytopeOps.h
+#        ITree.h       # <--- Updated
+#)
+
+# --- Target 3: The Test Playground ---
+# Create a file named 'test_polytope.cpp' to use this!
+add_executable(test_runner
+        test_polytope.cpp    # <--- Your new test file
         PolytopeStructs.h
-        UnitCube.h
         PolytopeOps.h
-        ITree.h       # <--- Updated
+)
+
+# --- Target 4: The Test New Main ---
+# Create a file named 'new_main.cpp' to use this!
+add_executable(new_main_runner
+        NewMain.cpp    # <--- Your new test file
+        PolytopeStructs.h
+        PolytopeOps.h
+        ITree.h
+        CompactIO.h
 )

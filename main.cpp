@@ -34,6 +34,13 @@ int main(int argc, char* argv[]) {
     std::println("==========================================");
     std::println("Target File: {}", filename);
 
+    // 1. Create a 3D Cube
+    Polytope my_cube = create_hypercube(3);
+
+    // 2. Print it
+    print_polytope(my_cube);
+    return 0;
+
     try {
         // ---------------------------------------------------------
         // 1. Load Hyperplane Data
