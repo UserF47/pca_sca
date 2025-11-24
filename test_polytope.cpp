@@ -26,10 +26,12 @@ int main() {
     std::cout << "--- P_Positive (x > y: Bottom-Right) ---\n";
     // Expecting 3 vertices: (0,0), (1,0), (1,1)
     print_polytope(p_pos);
+    std::cout << p_pos.vertices.size() << " vertices found.\n";
 
     std::cout << "\n--- P_Negative (x < y: Top-Left) ---\n";
     // Expecting 3 vertices: (0,0), (0,1), (1,1)
     print_polytope(p_neg);
+    std::cout << p_neg.vertices.size() << " vertices found.\n";
 
     return 0;
 }
