@@ -57,9 +57,6 @@ int main(int argc, char* argv[]) {
         // Create Standard Cube [0, 1]^d
         Polytope root_poly = create_hypercube(dim);
 
-        // [REMOVED] Centering logic.
-        // The domain is now strictly positive: x_i in [0, 1].
-
         std::println("[2] Initialized Root Domain ([0,1]^{})", dim);
 
         // ---------------------------------------------------------

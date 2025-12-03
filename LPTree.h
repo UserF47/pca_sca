@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <stack>
+#include <queue>
 #include <Eigen/Dense>
 #include "LPSolver.h" //
 
@@ -18,23 +18,6 @@ struct LPTreeNode {
     bool is_leaf() const { return splitting_plane_id == -1; }
 };
 
-// Helper struct for the iterative stack
-struct StackItem {
-    enum Type { PROCESS_NODE, PUSH_CONSTRAINT, POP_CONSTRAINT } type;
-    LPTreeNode* node = nullptr;
-    LinearConstraint constraint; // Only used if type == PUSH_CONSTRAINT
-
-    // Constructors for convenience
-    static StackItem Process(LPTreeNode* n) {
-        return {PROCESS_NODE, n, {}};
-    }
-    static StackItem Push(const LinearConstraint& c) {
-        return {PUSH_CONSTRAINT, nullptr, c};
-    }
-    static StackItem Pop() {
-        return {POP_CONSTRAINT, nullptr, {}};
-    }
-};
 
 class LPTreeBuilder {
 private:
@@ -49,94 +32,72 @@ public:
     }
 
     // ---------------------------------------------------------
-    // ITERATIVE INSERTION (Stack-Based)
+    // ITERATIVE INSERTION (BFS-Based, Work-Queue with plane_id)
     // ---------------------------------------------------------
     void insert(const Eigen::VectorXd& h_vec) {
-        // 1. Register the new plane
+        // 1. Register the new plane in history and get its id
         m_history.push_back(h_vec);
-        int new_id = (int)m_history.size() - 1;
+        const int plane_id = static_cast<int>(m_history.size()) - 1;
 
-        // --- Print Debug Info ---
-        // std::print("Inserting Plane {}: [", new_id);
-        // for (int k = 0; k < h_vec.size(); ++k) {
-        //     std::print("{:.2f}{}", h_vec[k], (k < h_vec.size() - 1) ? ", " : "");
-        // }
-        // std::println("]");
-        // ------------------------
+        // 2. Work item for BFS: node + its constraints
+        struct WorkItem {
+            LPTreeNode* node;
+            std::vector<LinearConstraint> constraints;
+        };
 
-        // 2. Setup the explicit stack and constraint list
-        std::vector<LinearConstraint> constraints;
-        std::stack<StackItem> stack;
+        // 3. Initialize queue with root node and empty constraint set
+        std::queue<WorkItem> q;
+        q.push(WorkItem{root.get(), {}});
 
-        // Start by processing the root
-        stack.push(StackItem::Process(root.get()));
+        // 4. BFS loop (layer-by-layer)
+        while (!q.empty()) {
+            WorkItem item = q.front();
+            q.pop();
 
-        // 3. Iterative Loop
-        while (!stack.empty()) {
-            StackItem item = stack.top();
-            stack.pop();
-
-            // --- Handle Constraint Management ---
-            if (item.type == StackItem::POP_CONSTRAINT) {
-                constraints.pop_back();
-                continue;
-            }
-            if (item.type == StackItem::PUSH_CONSTRAINT) {
-                constraints.push_back(item.constraint);
-                continue;
-            }
-
-            // --- Handle Node Processing (item.type == PROCESS_NODE) ---
             LPTreeNode* node = item.node;
+            std::vector<LinearConstraint>& constraints = item.constraints;
+            const Eigen::VectorXd& current_plane = m_history[plane_id];
 
-            // A. Geometric Pruning Check
-            auto [min_val, max_val] = solve_lp_min_max(constraints, h_vec);
+            // A. Geometric pruning: compute min/max of the plane over this cell
+            auto [min_val, max_val] = solve_lp_min_max(constraints, current_plane);
 
-            // If region is empty (infeasible), skip.
+            // If region is empty (infeasible), skip this branch
             if (min_val > max_val) continue;
 
-            // Check if the plane CUTS the cell (Min < 0 < Max)
+            // Check if the plane CUTS the cell (min < 0 < max)
             double eps = 1e-9;
             bool cuts = (min_val < -eps) && (max_val > eps);
 
             if (!cuts) {
                 // Plane is strictly positive or negative. It doesn't split this cell.
-                // We stop traversal for this branch here.
+                // We stop traversal for this node here.
                 continue;
             }
 
-            // B. Logic for Split vs Internal
+            // B. Logic for leaf vs internal node
             if (node->is_leaf()) {
                 // CUTTING A LEAF -> SPLIT
-                node->splitting_plane_id = new_id;
-                node->left = std::make_unique<LPTreeNode>();
+                node->splitting_plane_id = plane_id;
+                node->left  = std::make_unique<LPTreeNode>();
                 node->right = std::make_unique<LPTreeNode>();
-                // The new plane is established. No further recursion needed for this branch.
+                // The new plane is established at this node. No further processing needed
+                // for its children during this insertion of this plane.
                 continue;
             }
 
-            // CUTTING AN INTERNAL NODE -> TRAVERSE CHILDREN
-            // We need to visit Left and Right.
-            // Stack is LIFO, so we push the LAST operation first.
-
-            // We want sequence:
-            // 1. Push(LeftConstraint) -> Process(Left) -> Pop()
-            // 2. Push(RightConstraint) -> Process(Right) -> Pop()
-
+            // CUTTING AN INTERNAL NODE -> enqueue children (next BFS layer)
             int existing_id = node->splitting_plane_id;
             const Eigen::VectorXd& h_existing = m_history[existing_id];
 
-            // --- Operations for Right Child (pushed first, processed last) ---
-            // Constraint: h_existing >= 0  =>  -h_existing <= 0
-            stack.push(StackItem::Pop());
-            stack.push(StackItem::Process(node->right.get()));
-            stack.push(StackItem::Push({ -h_existing, 0.0 }));
+            // LEFT child: h_existing(x) <= 0
+            std::vector<LinearConstraint> left_constraints = constraints;
+            left_constraints.push_back({h_existing, 0.0});
+            q.push(WorkItem{node->left.get(), std::move(left_constraints)});
 
-            // --- Operations for Left Child (pushed last, processed first) ---
-            // Constraint: h_existing <= 0
-            stack.push(StackItem::Pop());
-            stack.push(StackItem::Process(node->left.get()));
-            stack.push(StackItem::Push({ h_existing, 0.0 }));
+            // RIGHT child: h_existing(x) >= 0  =>  -h_existing(x) <= 0
+            std::vector<LinearConstraint> right_constraints = constraints;
+            right_constraints.push_back({-h_existing, 0.0});
+            q.push(WorkItem{node->right.get(), std::move(right_constraints)});
         }
     }
 
