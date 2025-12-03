@@ -66,10 +66,8 @@ public:
         for(int j=0; j<num_vars; ++j) {
             for(int i=0; i<num_cons; ++i) {
                 double val = A(i, j);
-                if(std::abs(val) > 1e-9) { // Skip zeros
-                    a_index.push_back(i);
-                    a_value.push_back(val);
-                }
+                a_index.push_back(i);
+                a_value.push_back(val);
             }
             a_start.push_back((int)a_index.size());
         }

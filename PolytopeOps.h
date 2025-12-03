@@ -12,6 +12,10 @@
 #include <map>
 #include <algorithm>
 
+// Shared geometric epsilon for "on-plane" and side classification.
+// Keep this aligned with the tolerance you use in the simplex/LP layer.
+inline constexpr double GEOM_EPS = 1e-9;
+
 // Note the 'inline' keyword!
 inline Polytope create_hypercube(int dim) {
     Polytope cube;
@@ -33,6 +37,7 @@ inline Polytope create_hypercube(int dim) {
                 plane_ids.push_back(-(2 * k + 1));
             }
         }
+        std::sort(plane_ids.begin(), plane_ids.end());
         cube.add_vertex(position, plane_ids);
     }
 
@@ -124,7 +129,7 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
     // Key: Old Vertex ID, Value: New Vertex ID in result_poly
     std::unordered_map<int, int> old_to_new_map;
 
-    double eps = 1e-9;
+    // use shared GEOM_EPS
 
     // --- PHASE 1: Geometry (Find Vertices) ---
     for (const auto& edge : P.edges) {
@@ -135,7 +140,7 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
         double d2 = v2.position.dot(H);
 
         // CASE A: Vertex 1 lies exactly on the plane
-        if (std::abs(d1) < eps) {
+        if (std::abs(d1) < GEOM_EPS) {
             if (old_to_new_map.find(v1.id) == old_to_new_map.end()) {
                 // Copy the vertex, but ADD the new hyperplane constraint
                 std::vector<int> new_cons = P.constraints.at(v1.id);
@@ -150,7 +155,7 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
 
         // CASE B: Vertex 2 lies exactly on the plane
         // (Note: We check both independently because an edge might lie entirely on the plane)
-        if (std::abs(d2) < eps) {
+        if (std::abs(d2) < GEOM_EPS) {
             if (old_to_new_map.find(v2.id) == old_to_new_map.end()) {
                 std::vector<int> new_cons = P.constraints.at(v2.id);
                 new_cons.push_back(h_id);
@@ -163,7 +168,7 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
 
         // CASE C: Strict Crossing (One positive, one negative)
         // We only calculate intersection if NEITHER is on the plane (to avoid duplicates with A/B)
-        if (d1 > eps && d2 < -eps || d1 < -eps && d2 > eps) {
+        if ((d1 > GEOM_EPS && d2 < -GEOM_EPS) || (d1 < -GEOM_EPS && d2 > GEOM_EPS)) {
 
             double t = d1 / (d1 - d2);
             Eigen::VectorXd new_pos = v1.position - t * (v1.position - v2.position);
@@ -227,15 +232,13 @@ inline std::pair<Polytope, Polytope> split_polytope(const Polytope& P, const Eig
     p_pos.dim = P.dim;
     p_neg.dim = P.dim;
 
-    double eps = 1e-9;
-
     // We need to store new intersection vertices temporarily to add them to both polytopes
     // Structure: Position, Constraints
-    struct TempVertex {
-        Eigen::VectorXd pos;
-        std::vector<int> cons;
-    };
-    std::vector<TempVertex> new_intersections;
+    // struct TempVertex {
+    //     Eigen::VectorXd pos;
+    //     std::vector<int> cons;
+    // };
+    // std::vector<TempVertex> new_intersections;
 
     // Track which ORIGINAL vertices go where
     // 0 = on plane (both), 1 = pos, -1 = neg
@@ -245,10 +248,10 @@ inline std::pair<Polytope, Polytope> split_polytope(const Polytope& P, const Eig
     for (const auto& v : P.vertices) {
         double d = v.position.dot(H);
 
-        if (d > eps) {
+        if (d > GEOM_EPS) {
             v_side[v.id] = 1;
             p_pos.add_vertex(v.position, P.constraints.at(v.id));
-        } else if (d < -eps) {
+        } else if (d < -GEOM_EPS) {
             v_side[v.id] = -1;
             p_neg.add_vertex(v.position, P.constraints.at(v.id));
         } else {

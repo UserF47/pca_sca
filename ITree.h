@@ -62,14 +62,74 @@ public:
             }
 
             // CASE B: Internal Node -> Filter down
+
+            // int existing_id = current_node->splitting_plane_id;
+            // const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
+            //
+            // auto split_result = split_polytope(job.fragment, h_existing, existing_id);
+            // Polytope& p_pos = split_result.first;
+            // Polytope& p_neg = split_result.second;
+            //
+            // // UPDATE 2: Only propagate if we have a valid geometric fragment (>= 2 vertices)
+            //
+            // // Negative (Left) Child
+            // if (p_neg.vertices.size() >= 2) {
+            //     q.push({current_node->left.get(), std::move(p_neg)});
+            // }
+            //
+            // // Positive (Right) Child
+            // if (p_pos.vertices.size() >= 2) {
+            //     q.push({current_node->right.get(), std::move(p_pos)});
+            // }
+
             int existing_id = current_node->splitting_plane_id;
             const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
 
+            // 1) Compute min/max of h_existing over the fragment vertices
+            double min_d = 0.0, max_d = 0.0;
+            bool first = true;
+            for (const auto& v : job.fragment.vertices) {
+                double d = h_existing.dot(v.position);
+                if (first) {
+                    min_d = max_d = d;
+                    first = false;
+                } else {
+                    min_d = std::min(min_d, d);
+                    max_d = std::max(max_d, d);
+                }
+            }
+
+            // 2) Classify relative position
+            if (max_d <= GEOM_EPS && min_d >= -GEOM_EPS) {
+                // Entire fragment is basically ON the existing plane.
+                // Option A: send to both children with same fragment.
+                if (job.fragment.vertices.size() >= 2) {
+                    q.push({current_node->left.get(), job.fragment});
+                    q.push({current_node->right.get(), std::move(job.fragment)});
+                }
+                continue;
+            }
+
+            if (max_d <= GEOM_EPS) {
+                // Entire fragment on negative side -> go to LEFT only
+                if (job.fragment.vertices.size() >= 2) {
+                    q.push({current_node->left.get(), std::move(job.fragment)});
+                }
+                continue;
+            }
+
+            if (min_d >= -GEOM_EPS) {
+                // Entire fragment on positive side -> go to RIGHT only
+                if (job.fragment.vertices.size() >= 2) {
+                    q.push({current_node->right.get(), std::move(job.fragment)});
+                }
+                continue;
+            }
+
+            // 3) True partition case: min_d < -eps && max_d > eps -> need to SPLIT
             auto split_result = split_polytope(job.fragment, h_existing, existing_id);
             Polytope& p_pos = split_result.first;
             Polytope& p_neg = split_result.second;
-
-            // UPDATE 2: Only propagate if we have a valid geometric fragment (>= 2 vertices)
 
             // Negative (Left) Child
             if (p_neg.vertices.size() >= 2) {
