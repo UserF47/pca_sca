@@ -94,7 +94,14 @@ int main(int argc, char* argv[]) {
                 fflush(stdout);
             }
 
-            builder.insert_plane(root_poly, planes[i], unique_h_id);
+
+            // Skip if this plane does NOT partition the root polytope
+            int cls = classify_polytope_against_plane(root_poly, planes[i]);
+            if (cls != 2) {
+                continue;
+            }
+            // builder.insert_plane(root_poly, planes[i], unique_h_id);
+            builder.insert_plane_single_path(root_poly, planes[i], unique_h_id);
         }
 
         // Important: Print a newline at the end so subsequent output isn't overwritten
@@ -112,6 +119,7 @@ int main(int argc, char* argv[]) {
         std::println("Time:         {:.4f} s", std::chrono::duration<double>(t3-t2).count());
         std::println("Total Nodes:  {}", builder.count_nodes());
         std::println("Leaf Cells:   {}", builder.count_leaves());
+        std::println("Tree Depth:   {}", builder.compute_depth());   // <-- ADD THIS
 
     } catch (const std::exception& e) {
         std::println("Error: {}", e.what());

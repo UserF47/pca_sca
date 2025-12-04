@@ -14,7 +14,7 @@
 
 // Shared geometric epsilon for "on-plane" and side classification.
 // Keep this aligned with the tolerance you use in the simplex/LP layer.
-inline constexpr double GEOM_EPS = 1e-9;
+inline constexpr double GEOM_EPS = 1e-7;
 
 // Note the 'inline' keyword!
 inline Polytope create_hypercube(int dim) {
@@ -113,12 +113,33 @@ inline void generate_combinations_recursive(
     }
 }
 
+
 inline std::vector<std::vector<int>> get_combinations(const std::vector<int>& input, int k) {
     std::vector<std::vector<int>> result;
     std::vector<int> current;
     current.reserve(k);
     generate_combinations_recursive(input, current, 0, k, result);
     return result;
+}
+
+// Classifies a polytope (vertex set) against a hyperplane H.
+// Returns:
+//   -1 : all vertices H(v) <= 0 (including all-on-plane)
+//    1 : all vertices H(v) >= 0 (no negative, possibly some on-plane)
+//    2 : polytope straddles plane (some vertices H(v)>0, some H(v)<0)
+inline int classify_polytope_against_plane(const Polytope& P, const Eigen::VectorXd& H) {
+    bool has_pos = false, has_neg = false;
+    for (const auto& v : P.vertices) {
+        double d = H.dot(v.position);
+        if (d > GEOM_EPS) {
+            has_pos = true;
+        } else if (d < -GEOM_EPS) {
+            has_neg = true;
+        }
+        if (has_pos && has_neg) return 2;
+    }
+    if (has_pos && !has_neg) return 1;
+    return -1;
 }
 
 inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int h_id) {
@@ -128,6 +149,10 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
     // Helper to track which ORIGINAL vertices have been added to the result
     // Key: Old Vertex ID, Value: New Vertex ID in result_poly
     std::unordered_map<int, int> old_to_new_map;
+
+    auto is_origin = [](const Eigen::VectorXd& pos) {
+        return pos.squaredNorm() < GEOM_EPS * GEOM_EPS;
+    };
 
     // use shared GEOM_EPS
 
@@ -139,8 +164,8 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
         double d1 = v1.position.dot(H); // Add bias here if needed
         double d2 = v2.position.dot(H);
 
-        // CASE A: Vertex 1 lies exactly on the plane
-        if (std::abs(d1) < GEOM_EPS) {
+        // CASE A: Vertex 1 lies exactly on the plane (but ignore the origin)
+        if (std::abs(d1) < GEOM_EPS && !is_origin(v1.position)) {
             if (old_to_new_map.find(v1.id) == old_to_new_map.end()) {
                 // Copy the vertex, but ADD the new hyperplane constraint
                 std::vector<int> new_cons = P.constraints.at(v1.id);
@@ -153,9 +178,9 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
             }
         }
 
-        // CASE B: Vertex 2 lies exactly on the plane
+        // CASE B: Vertex 2 lies exactly on the plane (but ignore the origin)
         // (Note: We check both independently because an edge might lie entirely on the plane)
-        if (std::abs(d2) < GEOM_EPS) {
+        if (std::abs(d2) < GEOM_EPS && !is_origin(v2.position)) {
             if (old_to_new_map.find(v2.id) == old_to_new_map.end()) {
                 std::vector<int> new_cons = P.constraints.at(v2.id);
                 new_cons.push_back(h_id);
@@ -227,112 +252,277 @@ inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int 
 
 
 // Returns {P_positive, P_negative}
-inline std::pair<Polytope, Polytope> split_polytope(const Polytope& P, const Eigen::VectorXd& H, int h_id) {
+// Returns {P_positive, P_negative}
+inline std::pair<Polytope, Polytope>
+split_polytope(const Polytope& P, const Eigen::VectorXd& H, int h_id) {
     Polytope p_pos, p_neg;
     p_pos.dim = P.dim;
     p_neg.dim = P.dim;
 
-    // We need to store new intersection vertices temporarily to add them to both polytopes
-    // Structure: Position, Constraints
-    // struct TempVertex {
-    //     Eigen::VectorXd pos;
-    //     std::vector<int> cons;
-    // };
-    // std::vector<TempVertex> new_intersections;
 
-    // Track which ORIGINAL vertices go where
-    // 0 = on plane (both), 1 = pos, -1 = neg
-    std::vector<int> v_side(P.vertices.size());
+    // Map original vertex id -> new vertex id in each sub-polytope
+    std::unordered_map<int, int> pos_vertex_map;
+    std::unordered_map<int, int> neg_vertex_map;
 
-    // --- PHASE 1: Classify & Collect Original Vertices ---
-    for (const auto& v : P.vertices) {
-        double d = v.position.dot(H);
+    auto add_pos_vertex = [&](int orig_vid) -> int {
+        auto it = pos_vertex_map.find(orig_vid);
+        if (it != pos_vertex_map.end()) return it->second;
+        const Vertex& v = P.vertices[orig_vid];
+        p_pos.add_vertex(v.position, P.constraints.at(v.id));
+        int new_id = p_pos.vertices.back().id;
+        pos_vertex_map[orig_vid] = new_id;
+        return new_id;
+    };
 
-        if (d > GEOM_EPS) {
-            v_side[v.id] = 1;
-            p_pos.add_vertex(v.position, P.constraints.at(v.id));
-        } else if (d < -GEOM_EPS) {
-            v_side[v.id] = -1;
-            p_neg.add_vertex(v.position, P.constraints.at(v.id));
-        } else {
-            // Exactly on plane -> Add to BOTH, and append new constraint
-            v_side[v.id] = 0;
+    auto add_neg_vertex = [&](int orig_vid) -> int {
+        auto it = neg_vertex_map.find(orig_vid);
+        if (it != neg_vertex_map.end()) return it->second;
+        const Vertex& v = P.vertices[orig_vid];
+        p_neg.add_vertex(v.position, P.constraints.at(v.id));
+        int new_id = p_neg.vertices.back().id;
+        neg_vertex_map[orig_vid] = new_id;
+        return new_id;
+    };
 
-            std::vector<int> new_cons = P.constraints.at(v.id);
-            // Check if h_id exists to avoid duplicates (optional but good)
-            bool has_id = false;
-            for(int c : new_cons) if(c == h_id) has_id = true;
-            if(!has_id) {
-                new_cons.push_back(h_id);
-                std::sort(new_cons.begin(), new_cons.end());
-            }
+    struct IntersectionInfo {
+        Eigen::VectorXd pos;      // intersection coordinates
+        std::vector<int> cons;    // full constraint set (includes h_id), sorted
+        int pos_id;               // vertex id in p_pos (or -1 if not created)
+        int neg_id;               // vertex id in p_neg (or -1 if not created)
+    };
 
-            p_pos.add_vertex(v.position, new_cons);
-            p_neg.add_vertex(v.position, new_cons);
+    std::vector<IntersectionInfo> intersections;
+    // Keyed by full constraint set; assumes constraint sets uniquely identify vertices
+    std::map<std::vector<int>, int> intersection_index_by_cons;
+
+    int pos_edge_id = 0;
+    int neg_edge_id = 0;
+
+    // --- MAIN EDGE LOOP ---
+    for (const auto& e : P.edges) {
+        int i = e.v1;
+        int j = e.v2;
+        const Vertex& vi = P.vertices[i];
+        const Vertex& vj = P.vertices[j];
+
+        double hi = H.dot(vi.position);
+        double hj = H.dot(vj.position);
+
+        // Classify side with tolerance
+        int si = 0, sj = 0;
+        if (hi > GEOM_EPS)      si = 1;
+        else if (hi < -GEOM_EPS) si = -1;
+        else                     si = 0;
+
+        if (hj > GEOM_EPS)      sj = 1;
+        else if (hj < -GEOM_EPS) sj = -1;
+        else                     sj = 0;
+
+        // Corner case: both endpoints on the plane -> discard this edge completely
+        if (si == 0 && sj == 0) {
+            continue;
         }
-    }
 
-    // --- PHASE 2: Find Intersections (The Cut) ---
-    // We iterate edges. If an edge crosses, we generate ONE intersection
-    // and add it to both result polytopes.
-    for (const auto& edge : P.edges) {
-        int s1 = v_side[edge.v1];
-        int s2 = v_side[edge.v2];
+        // ---- Case 1: H(vi) >= 0 and H(vj) >= 0 ----
+        // (no strictly negative endpoint)
+        if ((si != -1) && (sj != -1)) {
+            int ni = add_pos_vertex(i);
+            int nj = add_pos_vertex(j);
+            p_pos.edges.push_back({pos_edge_id++, ni, nj});
+            continue;
+        }
 
-        // Strict Crossing check: One is 1, one is -1.
-        // (If one is 0, the edge touches the plane but doesn't "cross" in a way that generates a NEW vertex)
-        if ((s1 == 1 && s2 == -1) || (s1 == -1 && s2 == 1)) {
-            const Vertex& v1 = P.vertices[edge.v1];
-            const Vertex& v2 = P.vertices[edge.v2];
+        // ---- Case 2: H(vi) <= 0 and H(vj) <= 0 ----
+        // (no strictly positive endpoint)
+        if ((si != 1) && (sj != 1)) {
+            int ni = add_neg_vertex(i);
+            int nj = add_neg_vertex(j);
+            p_neg.edges.push_back({neg_edge_id++, ni, nj});
+            continue;
+        }
 
-            double d1 = v1.position.dot(H);
-            double d2 = v2.position.dot(H);
+        // ---- Case 3: strict crossing: H(vi) > 0, H(vj) < 0 or vice versa ----
+        if ((si == 1 && sj == -1) || (si == -1 && sj == 1)) {
+            // Compute intersection point P on this edge
+            double d1 = hi;
+            double d2 = hj;
+            double t = d1 / (d1 - d2); // standard interpolation parameter
+            Eigen::VectorXd new_pos = vi.position - t * (vi.position - vj.position);
 
-            double t = d1 / (d1 - d2);
-            Eigen::VectorXd new_pos = v1.position - t * (v1.position - v2.position);
-
-            // Merge constraints
+            // Compute constraint set S for intersection: (c(vi) ∩ c(vj)) ∪ {h_id}
             std::vector<int> new_constraints;
-            const auto& c1 = P.constraints.at(v1.id);
-            const auto& c2 = P.constraints.at(v2.id);
-            std::set_intersection(c1.begin(), c1.end(), c2.begin(), c2.end(), std::back_inserter(new_constraints));
+            const auto& c1 = P.constraints.at(vi.id);
+            const auto& c2 = P.constraints.at(vj.id);
+            std::set_intersection(
+                c1.begin(), c1.end(),
+                c2.begin(), c2.end(),
+                std::back_inserter(new_constraints)
+            );
             new_constraints.push_back(h_id);
             std::sort(new_constraints.begin(), new_constraints.end());
 
-            // Add to BOTH
-            p_pos.add_vertex(new_pos, new_constraints);
-            p_neg.add_vertex(new_pos, new_constraints);
+            // Deduplicate intersection points by constraint set
+            int idx;
+            auto it_idx = intersection_index_by_cons.find(new_constraints);
+            if (it_idx != intersection_index_by_cons.end()) {
+                idx = it_idx->second;
+            } else {
+                IntersectionInfo info{new_pos, new_constraints, -1, -1};
+                intersections.push_back(std::move(info));
+                idx = static_cast<int>(intersections.size()) - 1;
+                intersection_index_by_cons[new_constraints] = idx;
+            }
+
+            IntersectionInfo& I = intersections[idx];
+
+            // Ensure this intersection exists as a vertex in both polytopes
+            if (I.pos_id == -1) {
+                p_pos.add_vertex(I.pos, I.cons);
+                I.pos_id = p_pos.vertices.back().id;
+            }
+            if (I.neg_id == -1) {
+                p_neg.add_vertex(I.pos, I.cons);
+                I.neg_id = p_neg.vertices.back().id;
+            }
+
+            // Connect vi/P and P/vj on the correct sides
+            if (si == 1 && sj == -1) {
+                int vi_pos_id = add_pos_vertex(i);
+                int vj_neg_id = add_neg_vertex(j);
+
+                p_pos.edges.push_back({pos_edge_id++, vi_pos_id, I.pos_id});
+                p_neg.edges.push_back({neg_edge_id++, I.neg_id, vj_neg_id});
+            } else { // si == -1 && sj == 1
+                int vj_pos_id = add_pos_vertex(j);
+                int vi_neg_id = add_neg_vertex(i);
+
+                p_pos.edges.push_back({pos_edge_id++, vj_pos_id, I.pos_id});
+                p_neg.edges.push_back({neg_edge_id++, I.neg_id, vi_neg_id});
+            }
+
+            continue;
         }
+
+        // Logically we should never reach here, but we keep it for safety
     }
 
-    // --- PHASE 3: Rebuild Topology (Edges) ---
-    // Helper lambda to avoid code duplication for p_pos and p_neg
-    auto rebuild_edges = [&](Polytope& poly) {
+    // --- POST-PROCESSING: connect intersection points among themselves ---
+    // We build edges on the cutting plane between intersection points whose
+    // constraint sets share any (d-1)-subset.
+    if (!intersections.empty()) {
         std::map<std::vector<int>, int> pending;
-        int edge_cnt = 0;
-        int d = poly.dim;
+        int d = P.dim;
 
-        for (const auto& v : poly.vertices) {
-            const std::vector<int>& c_ids = poly.constraints.at(v.id);
-            std::vector<std::vector<int>> keys = get_combinations(c_ids, d - 1);
+        for (int idx = 0; idx < static_cast<int>(intersections.size()); ++idx) {
+            const auto& cons = intersections[idx].cons; // sorted, includes h_id
+            std::vector<std::vector<int>> keys = get_combinations(cons, d - 1);
 
             for (const auto& key : keys) {
                 auto it = pending.find(key);
                 if (it != pending.end()) {
-                    int partner = it->second;
-                    if (partner != v.id) {
-                        poly.edges.push_back({edge_cnt++, partner, v.id});
-                        pending.erase(it);
+                    int other_idx = it->second;
+                    const IntersectionInfo& A = intersections[idx];
+                    const IntersectionInfo& B = intersections[other_idx];
+
+                    // Avoid degenerate self-edges (shouldn't happen if dedupe works)
+                    if (A.pos_id != B.pos_id) {
+                        p_pos.edges.push_back({pos_edge_id++, A.pos_id, B.pos_id});
                     }
+                    if (A.neg_id != B.neg_id) {
+                        p_neg.edges.push_back({neg_edge_id++, A.neg_id, B.neg_id});
+                    }
+
+                    pending.erase(it);
                 } else {
-                    pending[key] = v.id;
+                    pending[key] = idx;
                 }
             }
         }
-    };
-
-    rebuild_edges(p_pos);
-    rebuild_edges(p_neg);
+    }
 
     return {p_pos, p_neg};
+}
+
+
+// Given:
+//   - root_poly: the initial domain, e.g. the unit hypercube [0,1]^d
+//   - planes:    list of hyperplane normals H (all through origin)
+//   - plane_ids: corresponding constraint IDs for each H
+//   - q:         query point in R^d (should lie inside root_poly)
+//
+// Returns the polytope that contains q after applying all planes
+// in order, always following the subdomain that contains q.
+inline Polytope trace_subdomain_along_point(
+    const Polytope& root_poly,
+    const std::vector<Eigen::VectorXd>& planes,
+    const std::vector<int>& plane_ids,
+    const Eigen::VectorXd& q
+) {
+    if (planes.size() != plane_ids.size()) {
+        throw std::runtime_error("trace_subdomain_along_point: planes.size() != plane_ids.size()");
+    }
+
+    // Start from the root domain
+    Polytope current = root_poly;
+
+    // Optional: quick sanity check that q is inside [0,1]^d
+    // (you can remove or relax this if your root domain is different)
+    for (int k = 0; k < q.size(); ++k) {
+        if (q[k] < -GEOM_EPS || q[k] > 1.0 + GEOM_EPS) {
+            std::cerr << "[trace_subdomain_along_point] WARNING: q[" << k
+                      << "] = " << q[k] << " is outside [0,1] with tolerance.\n";
+        }
+    }
+
+    for (std::size_t i = 0; i < planes.size(); ++i) {
+        const Eigen::VectorXd& H = planes[i];
+        int h_id = plane_ids[i];
+
+        // Evaluate current plane at the query point
+        double hq = H.dot(q);
+
+        // If q lies *very* close to the plane, you need a tie-breaking rule.
+        // Here: treat it as "no split" and just continue.
+        if (std::abs(hq) <= GEOM_EPS) {
+            // You could also choose to split and follow both, but that
+            // defeats the purpose of a single-path trace.
+            continue;
+        }
+
+        // Split the current polytope by H
+        auto [p_pos, p_neg] = split_polytope(current, H, h_id);
+
+        // If split_polytope produced empty polytopes (degenerate case),
+        // just keep the current polytope and move on.
+        if (p_pos.vertices.empty() && p_neg.vertices.empty()) {
+            std::cerr << "[trace_subdomain_along_point] WARNING: split produced two empty polytopes at plane index "
+                      << i << "\n";
+            continue;
+        }
+
+        // Decide which side to keep based on the sign of H(q)
+        if (hq > GEOM_EPS) {
+            // q is on the "positive" side → keep p_pos if it is non-empty
+            if (!p_pos.vertices.empty()) {
+                current = std::move(p_pos);
+            } else {
+                // Numerical corner case: positive sign but empty p_pos
+                std::cerr << "[trace_subdomain_along_point] WARNING: H(q)>0 but p_pos is empty at plane index "
+                          << i << ", keeping p_neg as fallback.\n";
+                current = std::move(p_neg);
+            }
+        } else { // hq < -GEOM_EPS
+            // q is on the "negative" side → keep p_neg if it is non-empty
+            if (!p_neg.vertices.empty()) {
+                current = std::move(p_neg);
+            } else {
+                // Numerical corner case: negative sign but empty p_neg
+                std::cerr << "[trace_subdomain_along_point] WARNING: H(q)<0 but p_neg is empty at plane index "
+                          << i << ", keeping p_pos as fallback.\n";
+                current = std::move(p_pos);
+            }
+        }
+    }
+
+    return current;
 }

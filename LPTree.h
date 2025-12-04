@@ -58,19 +58,11 @@ public:
             std::vector<LinearConstraint>& constraints = item.constraints;
             const Eigen::VectorXd& current_plane = m_history[plane_id];
 
-            // A. Geometric pruning: compute min/max of the plane over this cell
-            auto [min_val, max_val] = solve_lp_min_max(constraints, current_plane);
-
-            // If region is empty (infeasible), skip this branch
-            if (min_val > max_val) continue;
-
-            // Check if the plane CUTS the cell (min < 0 < max)
-            double eps = 1e-9;
-            bool cuts = (min_val < -eps) && (max_val > eps);
-
-            if (!cuts) {
-                // Plane is strictly positive or negative. It doesn't split this cell.
-                // We stop traversal for this node here.
+            // A. Geometric pruning: use LP-based cut test (min < 0 and max > 0)
+            if (!cuts_region_lp(constraints, current_plane)) {
+                // Either the region is infeasible for this constraint set,
+                // or the plane does not actually cut this cell.
+                // In both cases, we stop traversal for this node here.
                 continue;
             }
 
@@ -117,24 +109,25 @@ public:
     }
 
 private:
-    std::pair<double, double> solve_lp_min_max(const std::vector<LinearConstraint>& consts, const Eigen::VectorXd& objective) {
+    // Returns true if the objective cuts the region: min < 0 and max > 0
+    bool cuts_region_lp(const std::vector<LinearConstraint>& consts, const Eigen::VectorXd& objective) {
         int m = (int)consts.size();
         Eigen::MatrixXd A(m, m_dim);
         Eigen::VectorXd b(m);
 
-        for(int i=0; i<m; ++i) {
+        for (int i = 0; i < m; ++i) {
             A.row(i) = consts[i].normal;
             b(i) = consts[i].rhs;
         }
 
         LPResult res_max = LPSolver::solve(A, b, objective);
-        double max_val = (res_max.status == LPStatus::Optimal) ? res_max.objective_value : -1e9;
-
-        if (res_max.status != LPStatus::Optimal) return {1.0, -1.0};
+        if (res_max.status != LPStatus::Optimal) return false;
+        double max_val = res_max.objective_value;
 
         LPResult res_min = LPSolver::solve(A, b, -objective);
-        double min_val = (res_min.status == LPStatus::Optimal) ? -res_min.objective_value : 1e9;
+        if (res_min.status != LPStatus::Optimal) return false;
+        double min_val = -res_min.objective_value;
 
-        return {min_val, max_val};
+        return (min_val < 0.0 && max_val > 0.0);
     }
 };

@@ -33,6 +33,13 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < ds.count; ++i) {
             Eigen::VectorXd h(ds.dim);
             for (size_t j = 0; j < ds.dim; ++j) h[j] = ds.at(i, j);
+
+            std::print("Plane {:4d}: [", (int)i + 1);
+            for (int k = 0; k < h.size(); ++k) {
+                std::print("{}{}", h[k], (k + 1 < h.size() ? ", " : ""));
+            }
+            std::println("]");
+
             planes.push_back(h);
         }
         std::println("[1] Loaded {} planes", ds.count);
