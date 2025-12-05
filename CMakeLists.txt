@@ -20,9 +20,6 @@ endif()
 add_executable(gen_data
         generator.cpp
         DataGenerator.cpp
-        LPSolver.h
-        LPTree.h
-        main_lp.cpp
 )
 
 # --- Target 2: The Main Research Application ---
@@ -77,4 +74,35 @@ else()
     target_include_directories(lp_solver PRIVATE ${HIGHS_INCLUDE_DIR})
     target_link_libraries(lp_solver PRIVATE ${HIGHS_LIBRARY})
 
+endif()
+
+# --- Target 5: cddlib Double Description Test ---
+
+# Hardcode cddlib paths for this Mac (Homebrew)
+set(CDD_ROOT "/opt/homebrew/opt/cddlib")
+set(CDD_INCLUDE_DIR "${CDD_ROOT}/include")
+set(CDD_LIBRARY "${CDD_ROOT}/lib/libcdd.dylib")
+
+if (NOT EXISTS "${CDD_INCLUDE_DIR}/cddlib/cdd.h" OR NOT EXISTS "${CDD_LIBRARY}")
+    message(WARNING "cddlib not found at ${CDD_ROOT}! Target 'ddm_test' will not be built.")
+else()
+    add_executable(ddm_test
+            ddm_test.cpp
+    )
+    target_include_directories(ddm_test PRIVATE ${CDD_INCLUDE_DIR})
+    target_link_libraries(ddm_test PRIVATE ${CDD_LIBRARY})
+endif()
+
+# --- Target 6: DDM Vertex Computation Tool ---
+if (EXISTS "${CDD_INCLUDE_DIR}/cddlib/cdd.h" AND EXISTS "${CDD_LIBRARY}")
+    add_executable(ddm_vertex_tree
+            main_vertice_ddm.cpp
+            DDMSolver.h
+            DDMTree.h
+            CompactIO.h
+    )
+    target_include_directories(ddm_vertex_tree PRIVATE ${CDD_INCLUDE_DIR})
+    target_link_libraries(ddm_vertex_tree PRIVATE ${CDD_LIBRARY})
+else()
+    message(WARNING "cddlib not found! Target 'ddm_vertex_tree' will not be built.")
 endif()
