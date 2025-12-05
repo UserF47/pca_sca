@@ -7,7 +7,10 @@
 #include <Eigen/Dense>
 
 #include "CompactIO.h"
-#include "LPTree.h" 
+#include "DDMTree.h"
+
+#include <cddlib/setoper.h>
+#include <cddlib/cdd.h>
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -20,8 +23,10 @@ int main(int argc, char* argv[]) {
     std::string filename = std::format("{}_hyperplanes_{}d.bin", n_planes, dim);
 
     std::println("==========================================");
-    std::println("   I-Tree Solver (HiGHS LP Engine)        ");
+    std::println("   Vertex-Tree Solver (DDM Engine)        ");
     std::println("==========================================");
+
+    dd_set_global_constants();
 
     try {
         // 1. Load Data
@@ -85,5 +90,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    dd_free_global_constants();
     return 0;
 }
