@@ -10,7 +10,7 @@
 #include "CompactIO.h"
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
-#include "ITree.h"
+#include "OriPolyITree.h"
 
 int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
@@ -100,8 +100,8 @@ int main(int argc, char* argv[]) {
             if (cls != 2) {
                 continue;
             }
-            builder.insert_plane(root_poly, planes[i], unique_h_id);
-            // builder.insert_plane_single_path(root_poly, planes[i], unique_h_id);
+            builder.insert_plane(planes[i], unique_h_id);
+            // builder.insert_plane_single_path(planes[i], unique_h_id);
         }
 
         // Important: Print a newline at the end so subsequent output isn't overwritten

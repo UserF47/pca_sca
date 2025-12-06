@@ -106,3 +106,12 @@ if (EXISTS "${CDD_INCLUDE_DIR}/cddlib/cdd.h" AND EXISTS "${CDD_LIBRARY}")
 else()
     message(WARNING "cddlib not found! Target 'ddm_vertex_tree' will not be built.")
 endif()
+
+# --- Target 7: The Test ori poly ---
+add_executable(ori_poly_runner
+        main_ori_poly.cpp    # <--- Your new test file
+        PolytopeStructs.h
+        PolytopeOps.h
+        OriPolyITree.h
+        CompactIO.h
+)
