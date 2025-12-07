@@ -100,7 +100,8 @@ int main(int argc, char* argv[]) {
             if (cls != 2) {
                 continue;
             }
-            builder.insert_plane(root_poly, planes[i], unique_h_id);
+            // builder.insert_plane(root_poly, planes[i], unique_h_id);
+            builder.insert_dfs_non_recursive(root_poly, planes[i], unique_h_id);
             // builder.insert_plane_single_path(root_poly, planes[i], unique_h_id);
         }
 
