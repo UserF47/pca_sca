@@ -3,6 +3,7 @@
 #include <vector>
 #include <print>
 #include <queue>
+#include <chrono>
 #include <Eigen/Dense>
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
@@ -14,7 +15,7 @@ struct LinearConstraint {
 
 struct ITreeNode {
     int splitting_plane_id = -1;
-    std::vector<int> stored_planes;
+    // std::vector<int> stored_planes;
 
     std::unique_ptr<ITreeNode> left;
     std::unique_ptr<ITreeNode> right;
@@ -26,6 +27,25 @@ struct InsertionJob {
     ITreeNode* node;
     Polytope fragment;
 };
+
+// Rough memory usage estimate for a Polytope in bytes.
+inline std::size_t estimate_polytope_memory(const Polytope& P) {
+    std::size_t bytes = 0;
+
+    // Vertices (shallow estimate: Vertex object only; Eigen storage is dynamic and not fully counted here)
+    bytes += P.vertices.size() * sizeof(Vertex);
+
+    // Edges
+    bytes += P.edges.size() * sizeof(Edge);
+
+    // Constraint map (key + vector header)
+    bytes += P.constraints.size() * (sizeof(int) + sizeof(std::vector<int>));
+    for (const auto& kv : P.constraints) {
+        bytes += kv.second.size() * sizeof(int);
+    }
+
+    return bytes;
+}
 
 class ITreeBuilder {
 public:
@@ -55,7 +75,7 @@ public:
             // CASE A: Leaf -> Split it
             if (current_node->is_leaf()) {
                 current_node->splitting_plane_id = h_id;
-                current_node->stored_planes.push_back(h_id);
+                // current_node->stored_planes.push_back(h_id);
 
                 current_node->left = std::make_unique<ITreeNode>();
                 current_node->right = std::make_unique<ITreeNode>();
@@ -91,6 +111,100 @@ public:
             q.push({current_node->left.get(), std::move(p_neg)});
             q.push({current_node->right.get(), std::move(p_pos)});
 
+        }
+    }
+
+    // DFS (non-recursive) insertion version: memory-efficient alternative to BFS
+    void insert_dfs_non_recursive(const Polytope& root_domain,
+                                  const Eigen::VectorXd& h_vec,
+                                  int h_id) {
+        if (!global_planes) {
+            throw std::runtime_error("ITreeBuilder::insert_dfs_non_recursive: global_planes is nullptr");
+        }
+
+        // 1. Initial slice
+        Polytope initial_fragment = slice_polytope(root_domain, h_vec, h_id);
+        if (initial_fragment.vertices.empty()) {
+            // New plane does not intersect domain
+            return;
+        }
+
+        // Explicit stack for DFS
+        std::vector<InsertionJob> stack;
+        // stack.reserve(64);
+        stack.push_back({root.get(), std::move(initial_fragment)});
+
+        // Track time for periodic logging
+        using Clock = std::chrono::steady_clock;
+        auto last_print = Clock::now();
+
+        // DFS loop
+        while (!stack.empty()) {
+            // --- Debug: print approximate memory usage of the DFS stack every 30 seconds ---
+            auto now = Clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 30) {
+                std::size_t stack_bytes = stack.capacity() * sizeof(InsertionJob);
+                std::size_t stack_poly_bytes = 0;
+                for (const auto& j : stack) {
+                    stack_poly_bytes += estimate_polytope_memory(j.fragment);
+                }
+                std::println("[DFS] stack size = {}, capacity = {}, stack buffer ≈ {:.2f} KB, polys ≈ {:.2f} KB",
+                             stack.size(),
+                             stack.capacity(),
+                             stack_bytes / 1024.0,
+                             stack_poly_bytes / 1024.0);
+                last_print = now;
+            }
+            // --------------------------------------------------------------
+
+            InsertionJob job = std::move(stack.back());
+            stack.pop_back();
+
+            ITreeNode* current_node = job.node;
+
+            // CASE A: Leaf -> attach new plane
+            if (current_node->is_leaf()) {
+                current_node->splitting_plane_id = h_id;
+                // current_node->stored_planes.push_back(h_id);
+                current_node->left  = std::make_unique<ITreeNode>();
+                current_node->right = std::make_unique<ITreeNode>();
+                continue;
+            }
+
+            // CASE B: Internal node -> classify fragment using existing plane
+            int existing_id = current_node->splitting_plane_id;
+            const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
+
+            int cls = classify_polytope_against_plane(job.fragment, h_existing);
+
+            if (cls == -1) {
+                // Entire fragment on <= side
+                if (current_node->left) {
+                    stack.push_back({current_node->left.get(), std::move(job.fragment)});
+                }
+                continue;
+            }
+
+            if (cls == 1) {
+                // Entire fragment on >= side
+                if (current_node->right) {
+                    stack.push_back({current_node->right.get(), std::move(job.fragment)});
+                }
+                continue;
+            }
+
+            // CASE C: True split
+            auto split_result = split_polytope(job.fragment, h_existing, existing_id);
+            Polytope p_pos = std::move(split_result.first);   // H_existing >= 0
+            Polytope p_neg = std::move(split_result.second);  // H_existing <= 0
+
+            // Push in DFS order — right then left
+            if (current_node->right) {
+                stack.push_back({current_node->right.get(), std::move(p_pos)});
+            }
+            if (current_node->left) {
+                stack.push_back({current_node->left.get(), std::move(p_neg)});
+            }
         }
     }
 
@@ -142,7 +256,7 @@ public:
 
                 // Insert the new splitting plane at this leaf
                 current->splitting_plane_id = h_id;
-                current->stored_planes.push_back(h_id);
+                // current->stored_planes.push_back(h_id);
 
                 // Decide which child domain nominally contains P with respect
                 // to the NEW plane h_vec.
