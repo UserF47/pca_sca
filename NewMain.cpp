@@ -4,6 +4,7 @@
 #include <format>
 #include <stdexcept>
 #include <chrono>
+#include <fstream>
 #include <Eigen/Dense>
 
 // --- Project Headers ---
@@ -24,6 +25,13 @@ int main(int argc, char* argv[]) {
     int n_planes = std::stoi(argv[1]);
     int dim = std::stoi(argv[2]);
     std::string filename = std::format("{}_hyperplanes_{}d.bin", n_planes, dim);
+
+    // NEW: log file result_{dim}
+    std::string log_filename = std::format("result_{}", dim);
+    std::ofstream log(log_filename, std::ios::trunc);
+    if (!log) {
+        throw std::runtime_error(std::format("Failed to open log file: {}", log_filename));
+    }
 
     std::println("==========================================");
     std::println("   I-Tree Solver (Iterative Build)        ");
@@ -94,19 +102,42 @@ int main(int argc, char* argv[]) {
                 fflush(stdout);
             }
 
-
             // Skip if this plane does NOT partition the root polytope
             int cls = classify_polytope_against_plane(root_poly, planes[i]);
             if (cls != 2) {
                 continue;
             }
-            // builder.insert_plane(root_poly, planes[i], unique_h_id);
+
+            // Insert plane
             builder.insert_dfs_non_recursive(root_poly, planes[i], unique_h_id);
-            // builder.insert_plane_single_path(root_poly, planes[i], unique_h_id);
+
+            // === NEW: print stats every 10,000 planes processed ===
+            if ((i + 1) % 1000 == 0) {
+                auto t_now = std::chrono::high_resolution_clock::now();
+                double elapsed = std::chrono::duration<double>(t_now - t2).count();
+
+                auto total_nodes = builder.count_nodes();
+                auto leaf_cells  = builder.count_leaves();
+                auto depth       = builder.compute_depth();
+
+                // Console
+                std::println("\n\n=== Results after {} planes ===", i + 1);
+                std::println("Time:         {:.4f} s", elapsed);
+                std::println("Total Nodes:  {}", total_nodes);
+                std::println("Leaf Cells:   {}", leaf_cells);
+                std::println("Tree Depth:   {}", depth);
+
+                // Log file
+                log << std::format("=== Results after {} planes ===\n", i + 1);
+                log << std::format("Time:         {:.4f} s\n", elapsed);
+                log << std::format("Total Nodes:  {}\n", total_nodes);
+                log << std::format("Leaf Cells:   {}\n", leaf_cells);
+                log << std::format("Tree Depth:   {}\n\n", depth);
+                log.flush();
+            }
         }
 
         // Important: Print a newline at the end so subsequent output isn't overwritten
-        // CORRECT: Empty arguments automatically prints a newline
         std::println(""); // Works everywhere (prints just a newline)
 
         std::println("\r    Plane {}/{}... Done.", planes.size(), planes.size());
@@ -114,13 +145,26 @@ int main(int argc, char* argv[]) {
         auto t3 = std::chrono::high_resolution_clock::now();
 
         // ---------------------------------------------------------
-        // 4. Statistics & Output
+        // 4. Statistics & Output (final snapshot)
         // ---------------------------------------------------------
+        double total_time = std::chrono::duration<double>(t3 - t2).count();
+        auto total_nodes_final = builder.count_nodes();
+        auto leaf_cells_final  = builder.count_leaves();
+        auto depth_final       = builder.compute_depth();
+
         std::println("\n=== Results ===");
-        std::println("Time:         {:.4f} s", std::chrono::duration<double>(t3-t2).count());
-        std::println("Total Nodes:  {}", builder.count_nodes());
-        std::println("Leaf Cells:   {}", builder.count_leaves());
-        std::println("Tree Depth:   {}", builder.compute_depth());   // <-- ADD THIS
+        std::println("Time:         {:.4f} s", total_time);
+        std::println("Total Nodes:  {}", total_nodes_final);
+        std::println("Leaf Cells:   {}", leaf_cells_final);
+        std::println("Tree Depth:   {}", depth_final);
+
+        // Also write final result to log
+        log << "=== Final Results ===\n";
+        log << std::format("Time:         {:.4f} s\n", total_time);
+        log << std::format("Total Nodes:  {}\n", total_nodes_final);
+        log << std::format("Leaf Cells:   {}\n", leaf_cells_final);
+        log << std::format("Tree Depth:   {}\n", depth_final);
+        log.flush();
 
     } catch (const std::exception& e) {
         std::println("Error: {}", e.what());

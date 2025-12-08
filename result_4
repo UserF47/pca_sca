@@ -1,0 +1,24 @@
+=== Results after 1000 planes ===
+Time:         71.4621 s
+Total Nodes:  44593361
+Leaf Cells:   22296681
+Tree Depth:   77
+
+=== Results after 2000 planes ===
+Time:         569.7254 s
+Total Nodes:  345522785
+Leaf Cells:   172761393
+Tree Depth:   92
+
+=== Results after 3000 planes ===
+Time:         2176.8768 s
+Total Nodes:  1164350949
+Leaf Cells:   582175475
+Tree Depth:   99
+
+=== Results after 4000 planes ===
+Time:         6459.6813 s
+Total Nodes:  -1451875095
+Leaf Cells:   1421546101
+Tree Depth:   107
+

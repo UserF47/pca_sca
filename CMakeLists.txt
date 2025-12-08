@@ -41,7 +41,7 @@ add_executable(test_runner
 
 # --- Target 4: The Test New Main ---
 # Create a file named 'new_main.cpp' to use this!
-add_executable(new_main_runner
+add_executable(pca_new
         NewMain.cpp    # <--- Your new test file
         PolytopeStructs.h
         PolytopeOps.h
