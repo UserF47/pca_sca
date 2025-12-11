@@ -88,6 +88,8 @@ if (NOT EXISTS "${CDD_INCLUDE_DIR}/cddlib/cdd.h" OR NOT EXISTS "${CDD_LIBRARY}")
 else()
     add_executable(ddm_test
             ddm_test.cpp
+            FunctionPairGenerator.h
+            FunctionPairGenerator.cpp
     )
     target_include_directories(ddm_test PRIVATE ${CDD_INCLUDE_DIR})
     target_link_libraries(ddm_test PRIVATE ${CDD_LIBRARY})
@@ -113,5 +115,22 @@ add_executable(ori_poly_runner
         PolytopeStructs.h
         PolytopeOps.h
         OriPolyITree.h
+        CompactIO.h
+)
+
+# --- Target 8: Test data generator for FS-tree ---
+add_executable(function_data_test
+        FunctionPairMain.cpp
+        FunctionPairGenerator.h
+        FunctionPairGenerator.cpp
+)
+
+# --- Target 9: The Function sorting Tree ---
+# Create a file named 'new_main.cpp' to use this!
+add_executable(fstree
+        FsTreeMain.cpp
+        PolytopeStructs.h
+        PolytopeOps.h
+        FsTree.h
         CompactIO.h
 )
