@@ -156,6 +156,9 @@ int main(int argc, char* argv[]) {
                     log.flush();
                 }
             }
+
+            // After finishing the Fi-group, mark all current leaf nodes as Fi-relevant if they are not relevant yet.
+            builder.mark_all_leaves_relevant(fi);
         }
 
         std::println("\r    Comparisons {}/{}... Done.", planes_inserted,
