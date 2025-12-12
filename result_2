@@ -1,17 +1,11 @@
-=== Results after 1000 planes ===
-Time:         0.0161 s
-Total Nodes:  1531
-Leaf Cells:   766
-Tree Depth:   28
-
-=== Results after 4000 planes ===
-Time:         0.0450 s
-Total Nodes:  6897
-Leaf Cells:   3449
-Tree Depth:   58
+=== Results after 1000 comparisons ===
+Time:         0.0798 s
+Total Nodes:  1253
+Leaf Cells:   627
+Tree Depth:   24
 
 === Final Results ===
-Time:         0.0523 s
-Total Nodes:  8551
-Leaf Cells:   4276
-Tree Depth:   76
+Time:         0.0926 s
+Total Nodes:  1585
+Leaf Cells:   793
+Tree Depth:   26
