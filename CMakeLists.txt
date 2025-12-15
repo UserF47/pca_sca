@@ -42,7 +42,7 @@ add_executable(test_runner
 # --- Target 4: The Test New Main ---
 # Create a file named 'new_main.cpp' to use this!
 add_executable(pca_new
-        NewMain.cpp    # <--- Your new test file
+        ITreePloyCAMain.cpp    # <--- Your new test file
         PolytopeStructs.h
         PolytopeOps.h
         ITree.h
@@ -67,7 +67,7 @@ if (NOT HIGHS_INCLUDE_DIR OR NOT HIGHS_LIBRARY)
 else()
     # --- Target 1: The Main LP Solver Application ---
     add_executable(lp_solver
-            main_lp.cpp
+            ItreeSimplexMain.cpp
             # Helper headers (LPSolver.h, LPTree.h, etc are included implicitly)
             CompactIO.h
     )
@@ -98,7 +98,7 @@ endif()
 # --- Target 6: DDM Vertex Computation Tool ---
 if (EXISTS "${CDD_INCLUDE_DIR}/cddlib/cdd.h" AND EXISTS "${CDD_LIBRARY}")
     add_executable(ddm_vertex_tree
-            main_vertice_ddm.cpp
+            ITreeVertexDDMMain.cpp
             DDMSolver.h
             DDMTree.h
             CompactIO.h
@@ -111,7 +111,7 @@ endif()
 
 # --- Target 7: The Test ori poly ---
 add_executable(ori_poly_runner
-        main_ori_poly.cpp    # <--- Your new test file
+        ITreePolyDomainMain.cpp    # <--- Your new test file
         PolytopeStructs.h
         PolytopeOps.h
         OriPolyITree.h
