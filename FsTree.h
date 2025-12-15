@@ -123,20 +123,7 @@ public:
             ITreeNode* current_node = job.node;
 
             // === CASE 1: Node is a relevant leaf for some Fj ===
-            if (current_node->is_leaf() && current_node->is_relevant_leaf) {
-                // We are in the special case of your description:
-                // - N is a relevant leaf with target_function_id = Fj
-                // - we are inserting a hyperplane from group Fi (current_function_id)
-                // - use the sample point P to decide which side to descend
-
-                // Ensure children exist (empty) as requested
-                if (!current_node->left) {
-                    current_node->left = std::make_unique<ITreeNode>();
-                }
-                if (!current_node->right) {
-                    current_node->right = std::make_unique<ITreeNode>();
-                }
-
+            if (current_node->is_relevant_leaf) {
                 // Use the current hyperplane h_vec and the sample point P
                 const Eigen::VectorXd& P = current_node->sample_point;
                 double val = h_vec.dot(P); // h(P)
@@ -154,9 +141,7 @@ public:
                     // Insert into RIGHT subtree
                     stack.push_back({current_node->right.get(), std::move(job.fragment)});
                 } else {
-                    // Degenerate: P lies exactly on the hyperplane, push fragment to both sides
-                    stack.push_back({current_node->left.get(), job.fragment});
-                    stack.push_back({current_node->right.get(), job.fragment});
+                    continue;
                 }
                 continue;
             }
@@ -165,31 +150,21 @@ public:
             if (current_node->is_leaf()) {
                 // Attach the new splitting plane here
                 current_node->splitting_plane_id = h_id;
-                clear_relevance(*current_node); // if any stale info
-
-                // Split the fragment by this new plane
-                auto split_result = split_polytope(job.fragment, h_vec, h_id);
-                Polytope p_pos = std::move(split_result.first);   // H >= 0
-                Polytope p_neg = std::move(split_result.second);  // H <= 0
+                current_node->sample_point.resize(0);
 
                 current_node->left  = std::make_unique<ITreeNode>();
                 current_node->right = std::make_unique<ITreeNode>();
 
                 // Pick a sample point from the current fragment for this group
                 // and assign it to both children as "relevant leaves"
-                if (!job.fragment.vertices.empty() && current_function_id != -1) {
+                if (!job.fragment.vertices.empty()) {
                     const Vertex& v0 = job.fragment.vertices.front();
                     Eigen::VectorXd P(v0.position.size());
                     for (int d = 0; d < P.size(); ++d) {
                         P[d] = v0.position[d];
                     }
 
-                    current_node->left->is_relevant_leaf = true;
-                    current_node->left->target_function_id = current_function_id;
                     current_node->left->sample_point = P;
-
-                    current_node->right->is_relevant_leaf = true;
-                    current_node->right->target_function_id = current_function_id;
                     current_node->right->sample_point = P;
                 }
 
@@ -268,5 +243,33 @@ public:
         int left_depth  = node->left  ? compute_depth(node->left.get())  : 0;
         int right_depth = node->right ? compute_depth(node->right.get()) : 0;
         return 1 + std::max(left_depth, right_depth);
+    }
+
+    void mark_all_leaves_relevant(int fi) {
+        if (!root) return;
+        std::vector<ITreeNode*> st;
+        st.push_back(root.get());
+
+        while (!st.empty()) {
+            ITreeNode* node = st.back();
+            st.pop_back();
+            if (!node) continue;
+
+            // Internal node: keep traversing
+            if (!node->is_leaf()) {
+                if (node->right) st.push_back(node->right.get());
+                if (node->left)  st.push_back(node->left.get());
+                continue;
+            }
+
+            // Leaf node: set relevance if not already relevant
+            if (!node->is_relevant_leaf) {
+                node->is_relevant_leaf = true;
+                node->target_function_id = fi;
+
+                if (!node->left)  node->left  = std::make_unique<ITreeNode>();
+                if (!node->right) node->right = std::make_unique<ITreeNode>();
+            }
+        }
     }
 };

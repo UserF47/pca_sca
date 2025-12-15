@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
     // 2) Load the generated datasets back
     const std::string func_file = std::format("{}_functions_{}d.bin", n, dim);
-    const std::string pair_file = std::format("{}_hyperplanes_{}d.bin", n, dim);
+    const std::string pair_file = std::format("{}_pairwise_{}d.bin", n, dim);
 
     CompactDataset funcs;
     CompactDataset pairs;

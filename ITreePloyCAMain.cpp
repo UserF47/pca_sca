@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 
     int n_planes = std::stoi(argv[1]);
     int dim = std::stoi(argv[2]);
-    std::string filename = std::format("{}_hyperplanes_{}d.bin", n_planes, dim);
+    std::string filename = std::format("{}_pairwise_{}d.bin", n_planes, dim);
 
     // NEW: log file result_{dim}
     std::string log_filename = std::format("result_{}", dim);

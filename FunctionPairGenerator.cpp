@@ -74,7 +74,7 @@ namespace Generator {
         // -------------------- 3. Save to disk --------------------------
         try {
             std::string func_filename = std::format("{}_functions_{}d.bin", n, dim);
-            std::string pair_filename = std::format("{}_hyperplanes_{}d.bin", n, dim);
+            std::string pair_filename = std::format("{}_pairwise_{}d.bin", n, dim);
 
             CompactIO::save(func_filename, funcs);
             CompactIO::save(pair_filename, pairs);
