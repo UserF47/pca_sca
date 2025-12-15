@@ -11,7 +11,7 @@ struct LPResult {
     double objective_value;
 };
 
-class LPSolver {
+class SimplexSolver {
 public:
     // ------------------------------------------------------------
     // Solves: Maximize c^T * x

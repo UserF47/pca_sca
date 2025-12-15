@@ -66,13 +66,13 @@ if (NOT HIGHS_INCLUDE_DIR OR NOT HIGHS_LIBRARY)
     message(WARNING "HiGHS not found! Targets 'lp_solver' and 'highs_test' will not be built.")
 else()
     # --- Target 1: The Main LP Solver Application ---
-    add_executable(lp_solver
+    add_executable(ITreeSimplex
             ItreeSimplexMain.cpp
             # Helper headers (LPSolver.h, LPTree.h, etc are included implicitly)
             CompactIO.h
     )
-    target_include_directories(lp_solver PRIVATE ${HIGHS_INCLUDE_DIR})
-    target_link_libraries(lp_solver PRIVATE ${HIGHS_LIBRARY})
+    target_include_directories(ITreeSimplex PRIVATE ${HIGHS_INCLUDE_DIR})
+    target_link_libraries(ITreeSimplex PRIVATE ${HIGHS_LIBRARY})
 
 endif()
 
@@ -110,16 +110,16 @@ else()
 endif()
 
 # --- Target 7: The Test ori poly ---
-add_executable(ori_poly_runner
+add_executable(ITreePolyDomain
         ITreePolyDomainMain.cpp    # <--- Your new test file
         PolytopeStructs.h
         PolytopeOps.h
-        OriPolyITree.h
+        ITreePolyDomain.h
         CompactIO.h
 )
 
 # --- Target 8: Test data generator for FS-tree ---
-add_executable(function_data_test
+add_executable(FunctionGenerator
         FunctionPairMain.cpp
         FunctionPairGenerator.h
         FunctionPairGenerator.cpp

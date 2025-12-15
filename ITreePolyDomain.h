@@ -7,6 +7,8 @@
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
 
+#include <chrono>
+
 struct LinearConstraint {
     Eigen::VectorXd normal;
     double rhs;
@@ -57,6 +59,9 @@ struct InsertionJob {
 };
 
 class ITreeBuilder {
+private:
+    std::chrono::nanoseconds fc_time_ns{0};
+
 public:
     std::unique_ptr<ITreeNode> root;
     const std::vector<Eigen::VectorXd>* global_planes = nullptr;
@@ -113,7 +118,13 @@ public:
                 continue;
             }
 
+            using clock = std::chrono::high_resolution_clock;
+
+            auto fc0 = clock::now();
             int cls = classify_vertices_against_plane(node->vertices, h_vec);
+            auto fc1 = clock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
+
             if (cls != 2) {
                 // Plane does not partition this cell; skip its subtree.
                 continue;
@@ -121,7 +132,11 @@ public:
 
             if (node->is_leaf()) {
                 // Leaf that is actually cut by h_vec -> split its polytope.
+                auto sp0 = clock::now();
                 auto split_result = split_polytope(node->poly, h_vec, h_id);
+                auto sp1 = clock::now();
+                fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
+
                 Polytope& p_pos = split_result.first;   // H(x) >= 0 side
                 Polytope& p_neg = split_result.second;  // H(x) <= 0 side
 
@@ -322,5 +337,10 @@ public:
         int left_depth  = node->left  ? compute_depth(node->left.get())  : 0;
         int right_depth = node->right ? compute_depth(node->right.get()) : 0;
         return 1 + std::max(left_depth, right_depth);
+    }
+
+
+    double get_fc_time_sec() const {
+        return (double)fc_time_ns.count() / 1e9;
     }
 };
