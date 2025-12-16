@@ -343,4 +343,31 @@ public:
     double get_fc_time_sec() const {
         return (double)fc_time_ns.count() / 1e9;
     }
+
+    // Estimate bytes used by `node->vertices`.
+    // Counts:
+    //  - std::vector backing array (capacity * sizeof(Eigen::VectorXd))
+    //  - each Eigen::VectorXd heap buffer (size * sizeof(double))
+    static std::size_t estimate_vertices_bytes_in_node(const ITreeNode* node) {
+        if (!node) return 0;
+
+        std::size_t bytes = 0;
+        bytes += node->vertices.capacity() * sizeof(Eigen::VectorXd);
+
+        for (const auto& v : node->vertices) {
+            bytes += static_cast<std::size_t>(v.size()) * sizeof(double);
+        }
+        return bytes;
+    }
+
+    std::size_t total_vertices_storage_bytes(const ITreeNode* node = nullptr) const {
+        if (!node) node = root.get();
+        if (!node) return 0;
+
+        std::size_t bytes = estimate_vertices_bytes_in_node(node);
+        if (node->left)  bytes += total_vertices_storage_bytes(node->left.get());
+        if (node->right) bytes += total_vertices_storage_bytes(node->right.get());
+        return bytes;
+    }
 };
+

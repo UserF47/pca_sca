@@ -82,12 +82,18 @@ int main(int argc, char* argv[]) {
         fs::path log_dir = ensure_logs_dir();
 
         // FC log (checkpoint every 50 processed planes)
-        const std::string fc_base = std::format("ITreePolyDomainPerf_FC_{}_{}", dim, n_planes);
+        const std::string fc_base = std::format("ITreePolyDomainStoragePerf_FC_{}_{}", dim, n_planes);
         fs::path fc_path = log_dir / (fc_base + ".txt");
         std::ofstream fc_log(fc_path);
 
+        // Storage log (checkpoint every 50 processed planes)
+        const std::string storage_ckpt_base =
+            std::format("ITreePolyDomainStoragePerf_Storage_{}_{}", dim, n_planes);
+        fs::path storage_ckpt_path = log_dir / (storage_ckpt_base + ".txt");
+        std::ofstream storage_ckpt_log(storage_ckpt_path);
+
         // Scale log (10..50 step 5; hard stop 55)
-        const std::string scale_base = std::format("ITreePolyDomainPerf_Scale_{}_{}", dim, n_planes);
+        const std::string scale_base = std::format("ITreePolyDomainStoragePerf_Scale_{}_{}", dim, n_planes);
         fs::path scale_path = log_dir / (scale_base + ".txt");
         std::ofstream scale_log(scale_path);
 
@@ -136,8 +142,18 @@ int main(int argc, char* argv[]) {
             // FC checkpoint every 50 processed input planes
             const int processed = (int)i + 1;
             if (processed % 50 == 0) {
-                fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+                fc_log << std::format("{}\t{:.6f}\n",
+                                      processed,
+                                      builder.get_fc_time_sec());
                 fc_log.flush();
+
+                const std::size_t vertex_bytes =
+                    builder.total_vertices_storage_bytes();
+
+                storage_ckpt_log << std::format("{}\t{}\n",
+                                                processed,
+                                                vertex_bytes);
+                storage_ckpt_log.flush();
             }
 
             // Scale checkpoints
@@ -187,13 +203,37 @@ int main(int argc, char* argv[]) {
 
         const int total_processed = (int)planes.size();
         if (total_processed % 50 != 0) {
-            fc_log << std::format("{}\t{:.6f}\n", total_processed, builder.get_fc_time_sec());
+            fc_log << std::format("{}\t{:.6f}\n",
+                                  total_processed,
+                                  builder.get_fc_time_sec());
         }
         fc_log.close();
         scale_log.close();
+        storage_ckpt_log.close();
+
+        // ---------------------------------------------------------
+        // Vertex Storage Log (PolyDomain)
+        // ---------------------------------------------------------
+        const std::string storage_base =
+            std::format("ITreePolyDomainStorage_{}_{}", dim, n_planes);
+        fs::path storage_path = log_dir / (storage_base + ".txt");
+
+        std::ofstream storage_log(storage_path);
+        const std::size_t vertex_bytes =
+            builder.total_vertices_storage_bytes();
+
+        storage_log << std::format(
+            "Total Vertices Storage: {} bytes ({:.3f} MiB)\n",
+            vertex_bytes,
+            (double)vertex_bytes / (1024.0 * 1024.0)
+        );
+        storage_log.close();
+
+        std::println("[Log] STORAGE: {}", storage_path.string());
 
         std::println("[Log] FC: {}", fc_path.string());
         std::println("[Log] SCALE: {}", scale_path.string());
+        std::println("[Log] STORAGE-CHECKPOINT: {}", storage_ckpt_path.string());
 
     } catch (const std::exception& e) {
         std::println("Error: {}", e.what());
