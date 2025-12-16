@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
         fs::path fc_path = log_dir / (fc_base + ".txt");
         fs::path scale_path = log_dir / (scale_base + ".txt");
         std::ofstream fc_log(fc_path);
-        std::ofstream scale_log(scale_path);
+        std::ofstream scale_log(scale_path);7
 
         // Count only actually-inserted planes (cls==2 and inserted)
         int processed = 0;
