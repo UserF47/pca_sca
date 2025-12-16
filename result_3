@@ -1,186 +1,366 @@
-=== Results after 1000 comparisons ===
-Time:         0.7149 s
-Total Nodes:  710507
-Leaf Cells:   179319
-Tree Depth:   52
+=== Results after 1000 raw planes ===
+Time:         0.2028 s
+Total Nodes:  204265
+Leaf Cells:   102133
+Tree Depth:   42
 
-=== Results after 4000 comparisons ===
-Time:         7.8186 s
-Total Nodes:  13374823
-Leaf Cells:   3401649
+=== Results after 2000 raw planes ===
+Time:         1.0878 s
+Total Nodes:  893961
+Leaf Cells:   446981
+Tree Depth:   51
+
+=== Results after 3000 raw planes ===
+Time:         3.7469 s
+Total Nodes:  2493983
+Leaf Cells:   1246992
+Tree Depth:   59
+
+=== Results after 4000 raw planes ===
+Time:         8.4757 s
+Total Nodes:  4641663
+Leaf Cells:   2320832
+Tree Depth:   65
+
+=== Results after 5000 raw planes ===
+Time:         13.7563 s
+Total Nodes:  6371695
+Leaf Cells:   3185848
+Tree Depth:   65
+
+=== Results after 6000 raw planes ===
+Time:         21.4226 s
+Total Nodes:  8998405
+Leaf Cells:   4499203
+Tree Depth:   68
+
+=== Results after 7000 raw planes ===
+Time:         33.2468 s
+Total Nodes:  12585517
+Leaf Cells:   6292759
 Tree Depth:   69
 
-=== Results after 7000 comparisons ===
-Time:         16.5633 s
-Total Nodes:  30273087
-Leaf Cells:   7772734
+=== Results after 8000 raw planes ===
+Time:         50.3733 s
+Total Nodes:  17144039
+Leaf Cells:   8572020
+Tree Depth:   69
+
+=== Results after 10000 raw planes ===
+Time:         92.7945 s
+Total Nodes:  26490075
+Leaf Cells:   13245038
+Tree Depth:   71
+
+=== Results after 11000 raw planes ===
+Time:         125.9839 s
+Total Nodes:  33089727
+Leaf Cells:   16544864
+Tree Depth:   72
+
+=== Results after 12000 raw planes ===
+Time:         161.9630 s
+Total Nodes:  39287629
+Leaf Cells:   19643815
+Tree Depth:   74
+
+=== Results after 13000 raw planes ===
+Time:         205.8465 s
+Total Nodes:  46272897
+Leaf Cells:   23136449
 Tree Depth:   75
 
-=== Results after 8000 comparisons ===
-Time:         20.8817 s
-Total Nodes:  37491085
-Leaf Cells:   9730827
+=== Results after 14000 raw planes ===
+Time:         238.7604 s
+Total Nodes:  50181189
+Leaf Cells:   25090595
+Tree Depth:   75
+
+=== Results after 15000 raw planes ===
+Time:         298.8555 s
+Total Nodes:  59126725
+Leaf Cells:   29563363
 Tree Depth:   76
 
-=== Results after 9000 comparisons ===
-Time:         27.6783 s
-Total Nodes:  49788591
-Leaf Cells:   12880131
-Tree Depth:   80
+=== Results after 16000 raw planes ===
+Time:         356.0979 s
+Total Nodes:  66407863
+Leaf Cells:   33203932
+Tree Depth:   76
 
-=== Results after 10000 comparisons ===
-Time:         35.2330 s
-Total Nodes:  62818875
-Leaf Cells:   16270072
+=== Results after 17000 raw planes ===
+Time:         434.4585 s
+Total Nodes:  76555681
+Leaf Cells:   38277841
+Tree Depth:   79
+
+=== Results after 21000 raw planes ===
+Time:         811.8163 s
+Total Nodes:  116838785
+Leaf Cells:   58419393
 Tree Depth:   81
 
-=== Results after 11000 comparisons ===
-Time:         42.2827 s
-Total Nodes:  73637447
-Leaf Cells:   19249220
-Tree Depth:   82
+=== Results after 22000 raw planes ===
+Time:         945.8745 s
+Total Nodes:  129788259
+Leaf Cells:   64894130
+Tree Depth:   81
 
-=== Results after 12000 comparisons ===
-Time:         50.2960 s
-Total Nodes:  85779253
-Leaf Cells:   22530731
-Tree Depth:   82
+=== Results after 23000 raw planes ===
+Time:         1092.6668 s
+Total Nodes:  142719615
+Leaf Cells:   71359808
+Tree Depth:   81
 
-=== Results after 14000 comparisons ===
-Time:         67.4514 s
-Total Nodes:  114795637
-Leaf Cells:   29773188
+=== Results after 24000 raw planes ===
+Time:         1252.8286 s
+Total Nodes:  156262577
+Leaf Cells:   78131289
 Tree Depth:   84
 
-=== Results after 15000 comparisons ===
-Time:         79.0116 s
-Total Nodes:  128757707
-Leaf Cells:   34196187
-Tree Depth:   84
+=== Results after 25000 raw planes ===
+Time:         1422.1174 s
+Total Nodes:  169587113
+Leaf Cells:   84793557
+Tree Depth:   85
 
-=== Results after 16000 comparisons ===
-Time:         92.1418 s
-Total Nodes:  154294815
-Leaf Cells:   38723290
-Tree Depth:   86
+=== Results after 26000 raw planes ===
+Time:         1557.5623 s
+Total Nodes:  178329863
+Leaf Cells:   89164932
+Tree Depth:   85
 
-=== Results after 19000 comparisons ===
-Time:         134.0723 s
-Total Nodes:  215292857
-Leaf Cells:   55568762
+=== Results after 27000 raw planes ===
+Time:         1749.4882 s
+Total Nodes:  192442849
+Leaf Cells:   96221425
+Tree Depth:   85
+
+=== Results after 28000 raw planes ===
+Time:         1912.6094 s
+Total Nodes:  202771979
+Leaf Cells:   101385990
+Tree Depth:   85
+
+=== Results after 30000 raw planes ===
+Time:         2264.5114 s
+Total Nodes:  225039397
+Leaf Cells:   112519699
+Tree Depth:   85
+
+=== Results after 31000 raw planes ===
+Time:         2511.3575 s
+Total Nodes:  240913161
+Leaf Cells:   120456581
+Tree Depth:   85
+
+=== Results after 32000 raw planes ===
+Time:         2780.0298 s
+Total Nodes:  257564647
+Leaf Cells:   128782324
+Tree Depth:   85
+
+=== Results after 33000 raw planes ===
+Time:         3070.0135 s
+Total Nodes:  275645983
+Leaf Cells:   137822992
+Tree Depth:   85
+
+=== Results after 34000 raw planes ===
+Time:         3373.2190 s
+Total Nodes:  293689629
+Leaf Cells:   146844815
 Tree Depth:   87
 
-=== Results after 22000 comparisons ===
-Time:         177.5359 s
-Total Nodes:  278521565
-Leaf Cells:   70291668
+=== Results after 35000 raw planes ===
+Time:         3593.1143 s
+Total Nodes:  304122551
+Leaf Cells:   152061276
 Tree Depth:   87
 
-=== Results after 23000 comparisons ===
-Time:         199.2312 s
-Total Nodes:  303945531
-Leaf Cells:   77082303
+=== Results after 37000 raw planes ===
+Time:         4177.8072 s
+Total Nodes:  335508115
+Leaf Cells:   167754058
+Tree Depth:   87
+
+=== Results after 38000 raw planes ===
+Time:         4480.4951 s
+Total Nodes:  349775271
+Leaf Cells:   174887636
 Tree Depth:   88
 
-=== Results after 24000 comparisons ===
-Time:         219.8514 s
-Total Nodes:  329343937
-Leaf Cells:   82963551
+=== Results after 39000 raw planes ===
+Time:         4854.4502 s
+Total Nodes:  369450355
+Leaf Cells:   184725178
 Tree Depth:   89
 
-=== Results after 25000 comparisons ===
-Time:         239.3663 s
-Total Nodes:  341583609
-Leaf Cells:   88145134
+=== Results after 40000 raw planes ===
+Time:         5220.8149 s
+Total Nodes:  386986527
+Leaf Cells:   193493264
 Tree Depth:   89
 
-=== Results after 26000 comparisons ===
-Time:         266.2932 s
-Total Nodes:  378816131
-Leaf Cells:   95049818
+=== Results after 43000 raw planes ===
+Time:         6441.3576 s
+Total Nodes:  444725813
+Leaf Cells:   222362907
+Tree Depth:   89
+
+=== Results after 44000 raw planes ===
+Time:         6941.8039 s
+Total Nodes:  468384379
+Leaf Cells:   234192190
+Tree Depth:   89
+
+=== Results after 45000 raw planes ===
+Time:         7499.8264 s
+Total Nodes:  495819381
+Leaf Cells:   247909691
+Tree Depth:   89
+
+=== Results after 46000 raw planes ===
+Time:         8045.5358 s
+Total Nodes:  520762787
+Leaf Cells:   260381394
+Tree Depth:   89
+
+=== Results after 48000 raw planes ===
+Time:         9234.9206 s
+Total Nodes:  572024125
+Leaf Cells:   286012063
+Tree Depth:   89
+
+=== Results after 49000 raw planes ===
+Time:         9742.4640 s
+Total Nodes:  590082427
+Leaf Cells:   295041214
+Tree Depth:   89
+
+=== Results after 50000 raw planes ===
+Time:         10376.3304 s
+Total Nodes:  614832569
+Leaf Cells:   307416285
+Tree Depth:   89
+
+=== Results after 51000 raw planes ===
+Time:         11021.9665 s
+Total Nodes:  638486025
+Leaf Cells:   319243013
+Tree Depth:   89
+
+=== Results after 52000 raw planes ===
+Time:         11703.8020 s
+Total Nodes:  663909965
+Leaf Cells:   331954983
+Tree Depth:   89
+
+=== Results after 53000 raw planes ===
+Time:         12339.9389 s
+Total Nodes:  686563893
+Leaf Cells:   343281947
+Tree Depth:   89
+
+=== Results after 54000 raw planes ===
+Time:         12969.6023 s
+Total Nodes:  706841329
+Leaf Cells:   353420665
+Tree Depth:   89
+
+=== Results after 55000 raw planes ===
+Time:         13643.1045 s
+Total Nodes:  727889971
+Leaf Cells:   363944986
+Tree Depth:   90
+
+=== Results after 56000 raw planes ===
+Time:         14351.4077 s
+Total Nodes:  750728189
+Leaf Cells:   375364095
+Tree Depth:   90
+
+=== Results after 57000 raw planes ===
+Time:         15153.2116 s
+Total Nodes:  777308707
+Leaf Cells:   388654354
+Tree Depth:   90
+
+=== Results after 58000 raw planes ===
+Time:         16096.3348 s
+Total Nodes:  809229381
+Leaf Cells:   404614691
+Tree Depth:   90
+
+=== Results after 60000 raw planes ===
+Time:         17764.2910 s
+Total Nodes:  860862829
+Leaf Cells:   430431415
+Tree Depth:   90
+
+=== Results after 63000 raw planes ===
+Time:         20207.8826 s
+Total Nodes:  930191701
+Leaf Cells:   465095851
+Tree Depth:   90
+
+=== Results after 64000 raw planes ===
+Time:         21113.8976 s
+Total Nodes:  953161271
+Leaf Cells:   476580636
+Tree Depth:   90
+
+=== Results after 65000 raw planes ===
+Time:         22201.7427 s
+Total Nodes:  984333165
+Leaf Cells:   492166583
 Tree Depth:   91
 
-=== Results after 27000 comparisons ===
-Time:         294.7553 s
-Total Nodes:  407484549
-Leaf Cells:   103366683
+=== Results after 67000 raw planes ===
+Time:         24364.0713 s
+Total Nodes:  1042275741
+Leaf Cells:   521137871
 Tree Depth:   91
 
-=== Results after 28000 comparisons ===
-Time:         325.6448 s
-Total Nodes:  441341613
-Leaf Cells:   112370158
-Tree Depth:   91
-
-=== Results after 29000 comparisons ===
-Time:         350.0135 s
-Total Nodes:  467931699
-Leaf Cells:   117853873
-Tree Depth:   91
-
-=== Results after 30000 comparisons ===
-Time:         384.4249 s
-Total Nodes:  502170175
-Leaf Cells:   126130629
+=== Results after 69000 raw planes ===
+Time:         26735.1281 s
+Total Nodes:  1098610393
+Leaf Cells:   549305197
 Tree Depth:   92
 
-=== Results after 33000 comparisons ===
-Time:         461.1327 s
-Total Nodes:  583483487
-Leaf Cells:   146264396
-Tree Depth:   94
+=== Results after 70000 raw planes ===
+Time:         28222.2314 s
+Total Nodes:  1131427633
+Leaf Cells:   565713817
+Tree Depth:   92
 
-=== Results after 34000 comparisons ===
-Time:         493.4326 s
-Total Nodes:  606647315
-Leaf Cells:   153430069
-Tree Depth:   94
+=== Results after 71000 raw planes ===
+Time:         30443.6341 s
+Total Nodes:  1160189777
+Leaf Cells:   580094889
+Tree Depth:   92
 
-=== Results after 36000 comparisons ===
-Time:         564.0719 s
-Total Nodes:  681971169
-Leaf Cells:   171186462
-Tree Depth:   94
+=== Results after 72000 raw planes ===
+Time:         34131.2614 s
+Total Nodes:  1190566807
+Leaf Cells:   595283404
+Tree Depth:   93
 
-=== Results after 37000 comparisons ===
-Time:         605.7631 s
-Total Nodes:  711989661
-Leaf Cells:   180685336
-Tree Depth:   94
+=== Results after 73000 raw planes ===
+Time:         38075.3193 s
+Total Nodes:  1211484209
+Leaf Cells:   605742105
+Tree Depth:   93
 
-=== Results after 38000 comparisons ===
-Time:         652.4762 s
-Total Nodes:  748628383
-Leaf Cells:   191528463
-Tree Depth:   96
+=== Results after 74000 raw planes ===
+Time:         43066.1869 s
+Total Nodes:  1242937363
+Leaf Cells:   621468682
+Tree Depth:   93
 
-=== Results after 39000 comparisons ===
-Time:         698.3732 s
-Total Nodes:  793142027
-Leaf Cells:   200315915
-Tree Depth:   98
-
-=== Results after 40000 comparisons ===
-Time:         747.8074 s
-Total Nodes:  832519287
-Leaf Cells:   211548644
-Tree Depth:   98
-
-=== Results after 41000 comparisons ===
-Time:         805.6853 s
-Total Nodes:  887435653
-Leaf Cells:   222905919
-Tree Depth:   98
-
-=== Results after 43000 comparisons ===
-Time:         907.3288 s
-Total Nodes:  979072575
-Leaf Cells:   245517887
-Tree Depth:   98
-
-=== Results after 47000 comparisons ===
-Time:         1110.7783 s
-Total Nodes:  1157062929
-Leaf Cells:   290114246
-Tree Depth:   100
+=== Results after 75000 raw planes ===
+Time:         45859.0112 s
+Total Nodes:  1256078535
+Leaf Cells:   628039268
+Tree Depth:   93
 

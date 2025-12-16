@@ -6,11 +6,14 @@
 #include <chrono>
 #include <Eigen/Dense>
 
+#include <fstream>
+#include <filesystem>
+
 // --- Project Headers ---
 #include "CompactIO.h"
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
-#include "OriPolyITree.h"
+#include "ITreePolyDomain.h"
 
 int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
@@ -23,7 +26,7 @@ int main(int argc, char* argv[]) {
 
     int n_planes = std::stoi(argv[1]);
     int dim = std::stoi(argv[2]);
-    std::string filename = std::format("{}_hyperplanes_{}d.bin", n_planes, dim);
+    std::string filename = std::format("{}_pairwise_{}d.bin", n_planes, dim);
 
     std::println("==========================================");
     std::println("   I-Tree Solver (Iterative Build)        ");
@@ -67,6 +70,39 @@ int main(int argc, char* argv[]) {
 
         ITreeBuilder builder(root_poly);
 
+        namespace fs = std::filesystem;
+
+        auto ensure_logs_dir = []() -> fs::path {
+            fs::path logs_dir = "logs";
+            std::error_code ec;
+            fs::create_directories(logs_dir, ec);
+            return logs_dir;
+        };
+
+        fs::path log_dir = ensure_logs_dir();
+
+        // FC log (checkpoint every 50 processed planes)
+        const std::string fc_base = std::format("ITreePolyDomainStoragePerf_FC_{}_{}", dim, n_planes);
+        fs::path fc_path = log_dir / (fc_base + ".txt");
+        std::ofstream fc_log(fc_path);
+
+        // Storage log (checkpoint every 50 processed planes)
+        const std::string storage_ckpt_base =
+            std::format("ITreePolyDomainStoragePerf_Storage_{}_{}", dim, n_planes);
+        fs::path storage_ckpt_path = log_dir / (storage_ckpt_base + ".txt");
+        std::ofstream storage_ckpt_log(storage_ckpt_path);
+
+        // Scale log (10..50 step 5; hard stop 55)
+        const std::string scale_base = std::format("ITreePolyDomainStoragePerf_Scale_{}_{}", dim, n_planes);
+        fs::path scale_path = log_dir / (scale_base + ".txt");
+        std::ofstream scale_log(scale_path);
+
+        auto start_time = t2;
+        std::chrono::minutes next_checkpoint(10);
+        const std::chrono::minutes checkpoint_step(5);
+        const std::chrono::minutes last_checkpoint(50);
+        const std::chrono::minutes hard_stop(55);
+
         // Pass global reference so nodes can look up plane geometry
         builder.global_planes = &planes;
 
@@ -102,6 +138,50 @@ int main(int argc, char* argv[]) {
             }
             builder.insert_plane(planes[i], unique_h_id);
             // builder.insert_plane_single_path(planes[i], unique_h_id);
+
+            // FC checkpoint every 50 processed input planes
+            const int processed = (int)i + 1;
+            if (processed % 50 == 0) {
+                fc_log << std::format("{}\t{:.6f}\n",
+                                      processed,
+                                      builder.get_fc_time_sec());
+                fc_log.flush();
+
+                const std::size_t vertex_bytes =
+                    builder.total_vertices_storage_bytes();
+
+                storage_ckpt_log << std::format("{}\t{}\n",
+                                                processed,
+                                                vertex_bytes);
+                storage_ckpt_log.flush();
+            }
+
+            // Scale checkpoints
+            auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(
+                std::chrono::high_resolution_clock::now() - start_time);
+
+            while (elapsed >= next_checkpoint && next_checkpoint <= last_checkpoint) {
+                scale_log << std::format("{}\t{}\n", next_checkpoint.count(), processed);
+                scale_log.flush();
+                next_checkpoint += checkpoint_step;
+            }
+
+            // Hard stop at 55 minutes
+            if (elapsed >= hard_stop) {
+                scale_log << std::format("{}\t{}\n", hard_stop.count(), processed);
+                scale_log.flush();
+
+                // ensure final FC line exists
+                if (processed % 50 != 0) {
+                    fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+                    fc_log.flush();
+                }
+
+                std::println("\n[Scale] Reached {} minutes. Processed {} planes. Exiting.", hard_stop.count(), processed);
+                std::println("[Log] FC: {}", fc_path.string());
+                std::println("[Log] SCALE: {}", scale_path.string());
+                return 0;
+            }
         }
 
         // Important: Print a newline at the end so subsequent output isn't overwritten
@@ -120,6 +200,40 @@ int main(int argc, char* argv[]) {
         std::println("Total Nodes:  {}", builder.count_nodes());
         std::println("Leaf Cells:   {}", builder.count_leaves());
         std::println("Tree Depth:   {}", builder.compute_depth());   // <-- ADD THIS
+
+        const int total_processed = (int)planes.size();
+        if (total_processed % 50 != 0) {
+            fc_log << std::format("{}\t{:.6f}\n",
+                                  total_processed,
+                                  builder.get_fc_time_sec());
+        }
+        fc_log.close();
+        scale_log.close();
+        storage_ckpt_log.close();
+
+        // ---------------------------------------------------------
+        // Vertex Storage Log (PolyDomain)
+        // ---------------------------------------------------------
+        const std::string storage_base =
+            std::format("ITreePolyDomainStorage_{}_{}", dim, n_planes);
+        fs::path storage_path = log_dir / (storage_base + ".txt");
+
+        std::ofstream storage_log(storage_path);
+        const std::size_t vertex_bytes =
+            builder.total_vertices_storage_bytes();
+
+        storage_log << std::format(
+            "Total Vertices Storage: {} bytes ({:.3f} MiB)\n",
+            vertex_bytes,
+            (double)vertex_bytes / (1024.0 * 1024.0)
+        );
+        storage_log.close();
+
+        std::println("[Log] STORAGE: {}", storage_path.string());
+
+        std::println("[Log] FC: {}", fc_path.string());
+        std::println("[Log] SCALE: {}", scale_path.string());
+        std::println("[Log] STORAGE-CHECKPOINT: {}", storage_ckpt_path.string());
 
     } catch (const std::exception& e) {
         std::println("Error: {}", e.what());

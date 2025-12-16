@@ -3,7 +3,7 @@
 #include <vector>
 #include <queue>
 #include <Eigen/Dense>
-#include "LPSolver.h" //
+#include "SimplexSolver.h" //
 
 // Defines a half-space constraint: normal * x <= rhs
 struct LinearConstraint {
@@ -23,6 +23,9 @@ class LPTreeBuilder {
 private:
     std::vector<Eigen::VectorXd> m_history;
     int m_dim;
+
+    // ⬇️ timing accumulator (nanoseconds)
+    std::chrono::nanoseconds lp_cut_time{0};
 
 public:
     std::unique_ptr<LPTreeNode> root;
@@ -58,11 +61,15 @@ public:
             std::vector<LinearConstraint>& constraints = item.constraints;
             const Eigen::VectorXd& current_plane = m_history[plane_id];
 
-            // A. Geometric pruning: use LP-based cut test (min < 0 and max > 0)
-            if (!cuts_region_lp(constraints, current_plane)) {
-                // Either the region is infeasible for this constraint set,
-                // or the plane does not actually cut this cell.
-                // In both cases, we stop traversal for this node here.
+            using clock = std::chrono::high_resolution_clock;
+
+            auto t0 = clock::now();
+            bool cuts = cuts_region_lp(constraints, current_plane);
+            auto t1 = clock::now();
+
+            lp_cut_time += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0);
+
+            if (!cuts) {
                 continue;
             }
 
@@ -108,6 +115,14 @@ public:
         return count_leaves(node->left.get()) + count_leaves(node->right.get());
     }
 
+    double get_lp_cut_time_ms() const {
+        return lp_cut_time.count() / 1e6;  // milliseconds
+    }
+
+    double get_lp_cut_time_sec() const {
+        return lp_cut_time.count() / 1e9;  // seconds
+    }
+
 private:
     // Returns true if the objective cuts the region: min < 0 and max > 0
     bool cuts_region_lp(const std::vector<LinearConstraint>& consts, const Eigen::VectorXd& objective) {
@@ -120,11 +135,11 @@ private:
             b(i) = consts[i].rhs;
         }
 
-        LPResult res_max = LPSolver::solve(A, b, objective);
+        LPResult res_max = SimplexSolver::solve(A, b, objective);
         if (res_max.status != LPStatus::Optimal) return false;
         double max_val = res_max.objective_value;
 
-        LPResult res_min = LPSolver::solve(A, b, -objective);
+        LPResult res_min = SimplexSolver::solve(A, b, -objective);
         if (res_min.status != LPStatus::Optimal) return false;
         double min_val = -res_min.objective_value;
 

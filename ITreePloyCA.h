@@ -49,6 +49,14 @@ inline std::size_t estimate_polytope_memory(const Polytope& P) {
 
 class ITreeBuilder {
 public:
+    // FC time for PolyCA: classify_polytope_against_plane(...) + split_polytope(...)
+    // Accumulated across the whole run (all inserted planes).
+    std::chrono::nanoseconds fc_time_ns{0};
+
+    double get_fc_time_sec() const {
+        return static_cast<double>(fc_time_ns.count()) / 1e9;
+    }
+
     std::unique_ptr<ITreeNode> root;
     const std::vector<Eigen::VectorXd>* global_planes = nullptr;
 
@@ -88,8 +96,12 @@ public:
             int existing_id = current_node->splitting_plane_id;
             const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
 
-            // Use vertex-based classifier to decide how this fragment sits relative to the existing plane
+            using Clock = std::chrono::high_resolution_clock;
+
+            auto fc0 = Clock::now();
             int cls = classify_polytope_against_plane(job.fragment, h_existing);
+            auto fc1 = Clock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
 
             if (cls == -1) {
                 // All H(v) <= 0 (within tolerance) -> fragment belongs to LEFT side only
@@ -104,7 +116,11 @@ public:
             }
 
             // 3) True partition case: min_d < -eps && max_d > eps -> need to SPLIT
+            auto sp0 = Clock::now();
             auto split_result = split_polytope(job.fragment, h_existing, existing_id);
+            auto sp1 = Clock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
+
             Polytope& p_pos = split_result.first;
             Polytope& p_neg = split_result.second;
 
@@ -140,22 +156,22 @@ public:
 
         // DFS loop
         while (!stack.empty()) {
-            // --- Debug: print approximate memory usage of the DFS stack every 30 seconds ---
-            auto now = Clock::now();
-            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 30) {
-                std::size_t stack_bytes = stack.capacity() * sizeof(InsertionJob);
-                std::size_t stack_poly_bytes = 0;
-                for (const auto& j : stack) {
-                    stack_poly_bytes += estimate_polytope_memory(j.fragment);
-                }
-                std::println("[DFS] stack size = {}, capacity = {}, stack buffer ≈ {:.2f} KB, polys ≈ {:.2f} KB",
-                             stack.size(),
-                             stack.capacity(),
-                             stack_bytes / 1024.0,
-                             stack_poly_bytes / 1024.0);
-                last_print = now;
-            }
-            // --------------------------------------------------------------
+            // // --- Debug: print approximate memory usage of the DFS stack every 30 seconds ---
+            // auto now = Clock::now();
+            // if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 30) {
+            //     std::size_t stack_bytes = stack.capacity() * sizeof(InsertionJob);
+            //     std::size_t stack_poly_bytes = 0;
+            //     for (const auto& j : stack) {
+            //         stack_poly_bytes += estimate_polytope_memory(j.fragment);
+            //     }
+            //     std::println("[DFS] stack size = {}, capacity = {}, stack buffer ≈ {:.2f} KB, polys ≈ {:.2f} KB",
+            //                  stack.size(),
+            //                  stack.capacity(),
+            //                  stack_bytes / 1024.0,
+            //                  stack_poly_bytes / 1024.0);
+            //     last_print = now;
+            // }
+            // // --------------------------------------------------------------
 
             InsertionJob job = std::move(stack.back());
             stack.pop_back();
@@ -175,7 +191,12 @@ public:
             int existing_id = current_node->splitting_plane_id;
             const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
 
+            using FCClock = std::chrono::high_resolution_clock;
+
+            auto fc0 = FCClock::now();
             int cls = classify_polytope_against_plane(job.fragment, h_existing);
+            auto fc1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
 
             if (cls == -1) {
                 // Entire fragment on <= side
@@ -194,7 +215,11 @@ public:
             }
 
             // CASE C: True split
+            auto sp0 = FCClock::now();
             auto split_result = split_polytope(job.fragment, h_existing, existing_id);
+            auto sp1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
+
             Polytope p_pos = std::move(split_result.first);   // H_existing >= 0
             Polytope p_neg = std::move(split_result.second);  // H_existing <= 0
 
@@ -280,8 +305,13 @@ public:
             int existing_id = current->splitting_plane_id;
             const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
 
-            // Classify the current fragment against the existing plane
+            using FCClock = std::chrono::high_resolution_clock;
+
+            auto fc0 = FCClock::now();
             int cls = classify_polytope_against_plane(fragment, h_existing);
+            auto fc1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
+
             double valP = h_existing.dot(P);
 
             LinearConstraint lc;
@@ -310,7 +340,11 @@ public:
             }
 
             // True partition: fragment crosses h_existing, so split it
+            auto sp0 = FCClock::now();
             auto split_result = split_polytope(fragment, h_existing, existing_id);
+            auto sp1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
+
             Polytope p_pos = std::move(split_result.first);  // H >= 0
             Polytope p_neg = std::move(split_result.second); // H <= 0
 

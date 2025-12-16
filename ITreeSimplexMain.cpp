@@ -5,11 +5,23 @@
 #include <stdexcept>
 #include <chrono>
 #include <Eigen/Dense>
+#include <fstream>
+#include <filesystem>
 
 #include "CompactIO.h"
-#include "LPTree.h" 
+#include "ITreeSimplex.h"
 
 int main(int argc, char* argv[]) {
+    namespace fs = std::filesystem;
+
+    auto ensure_logs_dir = []() -> fs::path {
+        fs::path logs_dir = "logs";
+        if (!fs::exists(logs_dir)) {
+            fs::create_directory(logs_dir);
+        }
+        return logs_dir;
+    };
+
     if (argc != 3) {
         std::println("Usage: {} <count> <dim>", argv[0]);
         return 1;
@@ -17,7 +29,7 @@ int main(int argc, char* argv[]) {
 
     int n_planes = std::stoi(argv[1]);
     int dim = std::stoi(argv[2]);
-    std::string filename = std::format("{}_hyperplanes_{}d.bin", n_planes, dim);
+    std::string filename = std::format("{}_pairwise_{}d.bin", n_planes, dim);
 
     std::println("==========================================");
     std::println("   I-Tree Solver (HiGHS LP Engine)        ");
@@ -27,7 +39,7 @@ int main(int argc, char* argv[]) {
         // 1. Load Data
         auto t0 = std::chrono::high_resolution_clock::now();
         CompactDataset ds = CompactIO::load(filename);
-        
+
         std::vector<Eigen::VectorXd> planes;
         planes.reserve(ds.count);
         for (size_t i = 0; i < ds.count; ++i) {
@@ -52,9 +64,27 @@ int main(int argc, char* argv[]) {
 
         const int bar_width = 50;
 
+        fs::path log_dir = ensure_logs_dir();
+        const std::string base = std::format("ITreeSimplexPerf_FC_{}_{}", dim, n_planes);
+        fs::path txt_path = log_dir / (base + ".txt");
+
+        std::ofstream fc_log(txt_path);
+
+        // Scale log: how many intersections processed by time
+        const std::string scale_base = std::format("ITreeSimplexPerf_Scale_{}_{}", dim, n_planes);
+        fs::path scale_path = log_dir / (scale_base + ".txt");
+        std::ofstream scale_log(scale_path);
+
+        // Log checkpoints at 10..50 minutes (step 5), and final at 55 minutes
+        auto start_time = t2;
+        std::chrono::minutes next_checkpoint(5);
+        const std::chrono::minutes checkpoint_step(5);
+        const std::chrono::minutes last_checkpoint(50);
+        const std::chrono::minutes hard_stop(55);
+
         for (size_t i = 0; i < planes.size(); ++i) {
-            int unique_h_id = (int)i + 1; 
-            
+            int unique_h_id = (int)i + 1;
+
             if (i % 10 == 0 || i == planes.size() - 1) {
                 float progress = (float)(i + 1) / planes.size();
                 int pos = (int)(bar_width * progress);
@@ -69,8 +99,49 @@ int main(int argc, char* argv[]) {
             }
 
             builder.insert(planes[i]);
+
+            // FC log every 50 inserts
+            if ((i + 1) % 1 == 0) {
+                fc_log << std::format("{}\t{:.6f}\n", i + 1, builder.get_lp_cut_time_sec());
+                fc_log.flush();
+            }
+
+            // Scale checkpoints based on elapsed time since start_time (t2)
+            auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(
+                std::chrono::high_resolution_clock::now() - start_time);
+
+            // Emit all checkpoints we have passed (10..50 step 5)
+            while (elapsed >= next_checkpoint && next_checkpoint <= last_checkpoint) {
+                scale_log << std::format("{}\t{}\n", next_checkpoint.count(), i + 1);
+                scale_log.flush();
+                next_checkpoint += checkpoint_step;
+            }
+
+            // Hard stop at 55 minutes: log and exit
+            if (elapsed >= hard_stop) {
+                scale_log << std::format("{}\t{}\n", hard_stop.count(), i + 1);
+                scale_log.flush();
+
+                std::println("\n[Scale] Reached {} minutes. Processed {} intersections. Exiting.", hard_stop.count(), (int)i + 1);
+                std::println("[Log] SCALE: {}", scale_path.string());
+
+                // Ensure FC final log line also exists
+                if (((i + 1) % 50) != 0) {
+                    fc_log << std::format("{}\t{:.6f}\n", i + 1, builder.get_lp_cut_time_sec());
+                }
+
+                return 0;
+            }
         }
-        std::println(""); 
+
+        if (planes.size() % 50 != 0) {
+            fc_log << std::format("{}\t{:.6f}\n", planes.size(), builder.get_lp_cut_time_sec());
+        }
+        // If we finished early (before 55 minutes), write the last reached checkpoint info if any
+        scale_log.flush();
+        scale_log.close();
+
+        std::println("");
 
         auto t3 = std::chrono::high_resolution_clock::now();
 
@@ -79,6 +150,13 @@ int main(int argc, char* argv[]) {
         std::println("Time:         {:.4f} s", std::chrono::duration<double>(t3-t2).count());
         std::println("Total Nodes:  {}", builder.count_nodes());
         std::println("Leaf Cells:   {}", builder.count_leaves());
+
+
+        std::println("Feasibility Chekcing Time:     {:.4f} s",
+                     builder.get_lp_cut_time_sec());
+
+        std::println("[Log] TXT: {}", txt_path.string());
+        std::println("[Log] SCALE: {}", scale_path.string());
 
     } catch (const std::exception& e) {
         std::println("Error: {}", e.what());
