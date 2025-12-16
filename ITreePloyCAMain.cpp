@@ -86,13 +86,12 @@ int main(int argc, char* argv[]) {
 
         // Performance logs (same structure as Simplex)
         fs::path log_dir = ensure_logs_dir();
-        const std::string fc_base = std::format("ITreePolyCAPerf_FC_{}_{}", dim, n_planes);
-        const std::string scale_base = std::format("ITreePolyCAPerf_Scale_{}_{}", dim, n_planes);
+        const std::string fc_base = std::format("ITreePolyCAPerf_FC_Leaf_{}_{}", dim, n_planes);
+        const std::string scale_base = std::format("ITreePolyCAPerf_Scale__Leaf{}_{}", dim, n_planes);
         fs::path fc_path = log_dir / (fc_base + ".txt");
         fs::path scale_path = log_dir / (scale_base + ".txt");
         std::ofstream fc_log(fc_path);
-        std::ofstream scale_log(scale_path);7
-
+        std::ofstream scale_log(scale_path);
         // Count only actually-inserted planes (cls==2 and inserted)
         int processed = 0;
 
@@ -132,9 +131,13 @@ int main(int argc, char* argv[]) {
             builder.insert_dfs_non_recursive(root_poly, planes[i], unique_h_id);
             processed += 1;
 
-            // FC checkpoint every 50 processed insertions: format "<processed>\t<fc_time_sec>"
-            if (processed % 50 == 0) {
-                fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+            // FC checkpoint every 50 processed insertions: "<processed>\t<fc_time_sec>\t<leaf_nodes>"
+            if (processed % 5 == 0) {
+                const auto leaf_now = builder.count_leaves();
+                fc_log << std::format("{}\t{:.6f}\t{}\n",
+                                      processed,
+                                      builder.get_fc_time_sec(),
+                                      leaf_now);
                 fc_log.flush();
             }
 
@@ -148,7 +151,8 @@ int main(int argc, char* argv[]) {
                 next_checkpoint += checkpoint_step;
             }
 
-            // Hard stop at 55 minutes: log and exit
+            // Hard stop at 55 minutes: (DISABLED)
+            /*
             if (elapsed >= hard_stop) {
                 scale_log << std::format("{}\t{}\n", hard_stop.count(), processed);
                 scale_log.flush();
@@ -165,6 +169,7 @@ int main(int argc, char* argv[]) {
 
                 return 0;
             }
+            */
 
             // Keep your periodic tree stats logging (every 1000 raw planes seen)
             if ((i + 1) % 1000 == 0) {
@@ -194,7 +199,11 @@ int main(int argc, char* argv[]) {
 
         // Final FC checkpoint if we ended not on a multiple of 50
         if (processed > 0 && processed % 50 != 0) {
-            fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+            const auto leaf_now = builder.count_leaves();
+            fc_log << std::format("{}\t{:.6f}\t{}\n",
+                                  processed,
+                                  builder.get_fc_time_sec(),
+                                  leaf_now);
             fc_log.flush();
         }
         fc_log.close();
