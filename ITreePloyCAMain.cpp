@@ -5,13 +5,14 @@
 #include <stdexcept>
 #include <chrono>
 #include <fstream>
+#include <filesystem>
 #include <Eigen/Dense>
 
 // --- Project Headers ---
 #include "CompactIO.h"
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
-#include "ITree.h"
+#include "ITreePloyCA.h"
 
 int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
@@ -26,7 +27,16 @@ int main(int argc, char* argv[]) {
     int dim = std::stoi(argv[2]);
     std::string filename = std::format("{}_pairwise_{}d.bin", n_planes, dim);
 
-    // NEW: log file result_{dim}
+    namespace fs = std::filesystem;
+
+    auto ensure_logs_dir = []() -> fs::path {
+        fs::path logs_dir = "logs";
+        std::error_code ec;
+        fs::create_directories(logs_dir, ec);
+        return logs_dir;
+    };
+
+    // Existing log file: result_{dim}
     std::string log_filename = std::format("result_{}", dim);
     std::ofstream log(log_filename, std::ios::trunc);
     if (!log) {
@@ -57,14 +67,12 @@ int main(int argc, char* argv[]) {
         }
 
         auto t1 = std::chrono::high_resolution_clock::now();
-        std::println("[1] Loaded {} planes ({:.4f}s)", ds.count, std::chrono::duration<double>(t1-t0).count());
+        std::println("[1] Loaded {} planes ({:.4f}s)", ds.count, std::chrono::duration<double>(t1 - t0).count());
 
         // ---------------------------------------------------------
         // 2. Initialize Root Domain
         // ---------------------------------------------------------
-        // Create Standard Cube [0, 1]^d
         Polytope root_poly = create_hypercube(dim);
-
         std::println("[2] Initialized Root Domain ([0,1]^{})", dim);
 
         // ---------------------------------------------------------
@@ -74,19 +82,34 @@ int main(int argc, char* argv[]) {
         auto t2 = std::chrono::high_resolution_clock::now();
 
         ITreeBuilder builder(root_poly);
-
-        // Pass global reference so nodes can look up plane geometry
         builder.global_planes = &planes;
 
-        // Define the bar width (e.g., 50 characters long)
+        // Performance logs (same structure as Simplex)
+        fs::path log_dir = ensure_logs_dir();
+        const std::string fc_base = std::format("ITreeSimplexPerf_FC_{}_{}", dim, n_planes);
+        const std::string scale_base = std::format("ITreeSimplexPerf_Scale_{}_{}", dim, n_planes);
+        fs::path fc_path = log_dir / (fc_base + ".txt");
+        fs::path scale_path = log_dir / (scale_base + ".txt");
+        std::ofstream fc_log(fc_path);
+        std::ofstream scale_log(scale_path);
+
+        // Count only actually-inserted planes (cls==2 and inserted)
+        int processed = 0;
+
+        // Scale checkpoints at 10..50 minutes (step 5), hard stop at 55 minutes
+        auto start_time = t2;
+        std::chrono::minutes next_checkpoint(10);
+        const std::chrono::minutes checkpoint_step(5);
+        const std::chrono::minutes last_checkpoint(50);
+        const std::chrono::minutes hard_stop(55);
+
         const int bar_width = 50;
 
         for (size_t i = 0; i < planes.size(); ++i) {
             int unique_h_id = (int)i + 1;
 
-            // Update progress every 10 items OR on the very last item
             if (i % 10 == 0 || i == planes.size() - 1) {
-                float progress = (float)(i + 1) / planes.size();
+                float progress = (float)(i + 1) / (float)planes.size();
                 int pos = (int)(bar_width * progress);
 
                 std::print("\r    Progress: [");
@@ -95,10 +118,7 @@ int main(int argc, char* argv[]) {
                     else if (j == pos) std::print(">");
                     else std::print(" ");
                 }
-                // Print percentage and exact count
-                std::print("] {:.1f}% ({}/{})", progress * 100.0, i + 1, planes.size());
-
-                // CRITICAL: Force the console to update immediately
+                std::print("] {:.1f}% ({}/{})", progress * 100.0f, (int)i + 1, (int)planes.size());
                 fflush(stdout);
             }
 
@@ -108,28 +128,61 @@ int main(int argc, char* argv[]) {
                 continue;
             }
 
-            // Insert plane
+            // Insert plane (counts as one processed insertion)
             builder.insert_dfs_non_recursive(root_poly, planes[i], unique_h_id);
+            processed += 1;
 
-            // === NEW: print stats every 10,000 planes processed ===
+            // FC checkpoint every 50 processed insertions: format "<processed>\t<fc_time_sec>"
+            if (processed % 50 == 0) {
+                fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+                fc_log.flush();
+            }
+
+            // Scale checkpoints based on elapsed minutes
+            auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(
+                std::chrono::high_resolution_clock::now() - start_time);
+
+            while (elapsed >= next_checkpoint && next_checkpoint <= last_checkpoint) {
+                scale_log << std::format("{}\t{}\n", next_checkpoint.count(), processed);
+                scale_log.flush();
+                next_checkpoint += checkpoint_step;
+            }
+
+            // Hard stop at 55 minutes: log and exit
+            if (elapsed >= hard_stop) {
+                scale_log << std::format("{}\t{}\n", hard_stop.count(), processed);
+                scale_log.flush();
+
+                // Ensure final FC line exists even if not on a multiple of 50
+                if (processed % 50 != 0) {
+                    fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+                    fc_log.flush();
+                }
+
+                std::println("\n[Scale] Reached {} minutes. Processed {} inserted planes. Exiting.", hard_stop.count(), processed);
+                std::println("[Log] FC: {}", fc_path.string());
+                std::println("[Log] SCALE: {}", scale_path.string());
+
+                return 0;
+            }
+
+            // Keep your periodic tree stats logging (every 1000 raw planes seen)
             if ((i + 1) % 1000 == 0) {
                 auto t_now = std::chrono::high_resolution_clock::now();
-                double elapsed = std::chrono::duration<double>(t_now - t2).count();
+                double elapsed_sec = std::chrono::duration<double>(t_now - t2).count();
 
                 auto total_nodes = builder.count_nodes();
                 auto leaf_cells  = builder.count_leaves();
                 auto depth       = builder.compute_depth();
 
-                // Console
-                std::println("\n\n=== Results after {} planes ===", i + 1);
-                std::println("Time:         {:.4f} s", elapsed);
+                std::println("\n\n=== Results after {} raw planes ===", (int)i + 1);
+                std::println("Time:         {:.4f} s", elapsed_sec);
                 std::println("Total Nodes:  {}", total_nodes);
                 std::println("Leaf Cells:   {}", leaf_cells);
                 std::println("Tree Depth:   {}", depth);
 
-                // Log file
-                log << std::format("=== Results after {} planes ===\n", i + 1);
-                log << std::format("Time:         {:.4f} s\n", elapsed);
+                log << std::format("=== Results after {} raw planes ===\n", (int)i + 1);
+                log << std::format("Time:         {:.4f} s\n", elapsed_sec);
                 log << std::format("Total Nodes:  {}\n", total_nodes);
                 log << std::format("Leaf Cells:   {}\n", leaf_cells);
                 log << std::format("Tree Depth:   {}\n\n", depth);
@@ -137,8 +190,18 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Important: Print a newline at the end so subsequent output isn't overwritten
-        std::println(""); // Works everywhere (prints just a newline)
+        std::println("");
+
+        // Final FC checkpoint if we ended not on a multiple of 50
+        if (processed > 0 && processed % 50 != 0) {
+            fc_log << std::format("{}\t{:.6f}\n", processed, builder.get_fc_time_sec());
+            fc_log.flush();
+        }
+        fc_log.close();
+        scale_log.close();
+
+        std::println("[Log] FC: {}", fc_path.string());
+        std::println("[Log] SCALE: {}", scale_path.string());
 
         std::println("\r    Plane {}/{}... Done.", planes.size(), planes.size());
 
@@ -158,7 +221,6 @@ int main(int argc, char* argv[]) {
         std::println("Leaf Cells:   {}", leaf_cells_final);
         std::println("Tree Depth:   {}", depth_final);
 
-        // Also write final result to log
         log << "=== Final Results ===\n";
         log << std::format("Time:         {:.4f} s\n", total_time);
         log << std::format("Total Nodes:  {}\n", total_nodes_final);

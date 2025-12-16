@@ -41,11 +41,11 @@ add_executable(test_runner
 
 # --- Target 4: The Test New Main ---
 # Create a file named 'new_main.cpp' to use this!
-add_executable(pca_new
+add_executable(ITreePloyCA
         ITreePloyCAMain.cpp    # <--- Your new test file
         PolytopeStructs.h
         PolytopeOps.h
-        ITree.h
+        ITreePloyCA.h
         CompactIO.h
 )
 
