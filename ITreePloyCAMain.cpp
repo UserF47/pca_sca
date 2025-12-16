@@ -86,8 +86,8 @@ int main(int argc, char* argv[]) {
 
         // Performance logs (same structure as Simplex)
         fs::path log_dir = ensure_logs_dir();
-        const std::string fc_base = std::format("ITreeSimplexPerf_FC_{}_{}", dim, n_planes);
-        const std::string scale_base = std::format("ITreeSimplexPerf_Scale_{}_{}", dim, n_planes);
+        const std::string fc_base = std::format("ITreePolyCAPerf_FC_{}_{}", dim, n_planes);
+        const std::string scale_base = std::format("ITreePolyCAPerf_Scale_{}_{}", dim, n_planes);
         fs::path fc_path = log_dir / (fc_base + ".txt");
         fs::path scale_path = log_dir / (scale_base + ".txt");
         std::ofstream fc_log(fc_path);
