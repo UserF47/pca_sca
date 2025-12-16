@@ -127,7 +127,7 @@ add_executable(FunctionGenerator
 
 # --- Target 9: The Function sorting Tree ---
 # Create a file named 'new_main.cpp' to use this!
-add_executable(fstree
+add_executable(FsTree
         FsTreeMain.cpp
         PolytopeStructs.h
         PolytopeOps.h

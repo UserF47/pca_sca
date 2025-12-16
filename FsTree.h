@@ -69,6 +69,14 @@ inline std::size_t estimate_polytope_memory(const Polytope& P) {
 
 class ITreeBuilder {
 public:
+    // FC time for FsTree: classify_polytope_against_plane(...) + split_polytope(...)
+    // Accumulated across the whole run (all inserted planes).
+    std::chrono::nanoseconds fc_time_ns{0};
+
+    double get_fc_time_sec() const {
+        return static_cast<double>(fc_time_ns.count()) / 1e9;
+    }
+
     std::unique_ptr<ITreeNode> root;
     const std::vector<Eigen::VectorXd>* global_planes = nullptr;
 
@@ -177,7 +185,12 @@ public:
             int existing_id = current_node->splitting_plane_id;
             const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
 
+            using FCClock = std::chrono::high_resolution_clock;
+
+            auto fc0 = FCClock::now();
             int cls = classify_polytope_against_plane(job.fragment, h_existing);
+            auto fc1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
 
             if (cls == -1) {
                 // Entire fragment on <= side
@@ -196,7 +209,10 @@ public:
             }
 
             // CASE 3C: True split
+            auto sp0 = FCClock::now();
             auto split_result = split_polytope(job.fragment, h_existing, existing_id);
+            auto sp1 = FCClock::now();
+            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
             Polytope p_pos = std::move(split_result.first);   // H >= 0
             Polytope p_neg = std::move(split_result.second);  // H <= 0
 
@@ -233,6 +249,31 @@ public:
         if (!node) node = root.get();
         if (node->is_leaf()) return 1;
         return count_leaves(node->left.get()) + count_leaves(node->right.get());
+    }
+
+    // Count leaf nodes whose is_relevant_leaf == true (ITERATIVE to avoid stack overflow)
+    int count_relevant_leaves() const {
+        if (!root) return 0;
+
+        int cnt = 0;
+        std::vector<const ITreeNode*> st;
+        st.reserve(1024);
+        st.push_back(root.get());
+
+        while (!st.empty()) {
+            const ITreeNode* node = st.back();
+            st.pop_back();
+            if (!node) continue;
+
+            if (node->is_leaf()) {
+                if (node->is_relevant_leaf) cnt += 1;
+                continue;
+            }
+
+            if (node->left)  st.push_back(node->left.get());
+            if (node->right) st.push_back(node->right.get());
+        }
+        return cnt;
     }
 
     // Compute maximum depth of the I-Tree
