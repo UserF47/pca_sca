@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
     namespace fs = std::filesystem;
 
     auto ensure_logs_dir = []() -> fs::path {
-        fs::path logs_dir = "logs";
+        fs::path logs_dir = "logs_FsTree_Storage";
         std::error_code ec;
         fs::create_directories(logs_dir, ec);
         return logs_dir;
@@ -126,6 +126,8 @@ int main(int argc, char* argv[]) {
                 int b = fj;
 
                 std::size_t plane_index = Generator::pair_index(a, b, n_functions);
+                // std::print("cur_index: {}\n", plane_index);
+
                 int unique_h_id = (int)plane_index + 1;
 
                 // Progress bar (over total pairs processed across all groups)
@@ -151,44 +153,29 @@ int main(int argc, char* argv[]) {
                 }
 
                 // Group-aware insertion
-                builder.insert_dfs_non_recursive(root_poly, planes[plane_index], unique_h_id);
+                builder.insert_dfs_non_recursive(root_poly, planes[plane_index], unique_h_id, fi, n_functions);
                 planes_inserted++;
-
-                // Periodic stats (every 1000 inserted comparisons)
-                // if (planes_inserted % 1000 == 0 || planes_inserted == total_pairs) {
-                //     auto t_now = std::chrono::high_resolution_clock::now();
-                //     double elapsed = std::chrono::duration<double>(t_now - t2).count();
-                //
-                //     auto total_nodes = builder.count_nodes();
-                //     auto leaf_cells  = builder.count_leaves();
-                //     auto depth       = builder.compute_depth();
-                //
-                //     std::println("\n\n=== Results after {} comparisons ===", planes_inserted);
-                //     std::println("Time:         {:.4f} s", elapsed);
-                //     std::println("Total Nodes:  {}", total_nodes);
-                //     std::println("Leaf Cells:   {}", leaf_cells);
-                //     std::println("Tree Depth:   {}", depth);
-                //
-                //     log << std::format("=== Results after {} comparisons ===\n", planes_inserted);
-                //     log << std::format("Time:         {:.4f} s\n", elapsed);
-                //     log << std::format("Total Nodes:  {}\n", total_nodes);
-                //     log << std::format("Leaf Cells:   {}\n", leaf_cells);
-                //     log << std::format("Tree Depth:   {}\n\n", depth);
-                //     log.flush();
-                // }
             }
 
             // After finishing the Fi-group, mark all current leaf nodes as Fi-relevant if they are not relevant yet.
             builder.mark_all_leaves_relevant(fi);
+            // const int relevant_leaves = builder.count_relevant_leaves();
+            // std::println("[Fi={}] relevant_leaves = {}", fi, relevant_leaves);
+
 
             // Per-fi performance snapshot: cumulative FC time + current relevant leaves
-            {
-                const double fc_sec = builder.get_fc_time_sec();
-                const int relevant_leaves = builder.count_relevant_leaves();
-                perf_log << std::format("{}\t{:.6f}\t{}\n", fi, fc_sec, relevant_leaves);
-                perf_log.flush();
-            }
+            // {
+            //     const double fc_sec = builder.get_fc_time_sec();
+            //     const int relevant_leaves = builder.count_relevant_leaves();
+            //     perf_log << std::format("{}\t{:.6f}\t{}\n", fi, fc_sec, relevant_leaves);
+            //     perf_log.flush();
+            // }
         }
+
+        double fc_sec = builder.get_fc_time_sec();
+        int relevant_leaves = builder.count_relevant_leaves();
+        perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec, relevant_leaves);
+        perf_log.flush();
 
         std::println("\r    Comparisons {}/{}... Done.", planes_inserted,
                      total_pairs);
@@ -208,6 +195,7 @@ int main(int argc, char* argv[]) {
         std::println("Total Nodes:  {}", total_nodes_final);
         std::println("Leaf Cells:   {}", leaf_cells_final);
         std::println("Tree Depth:   {}", depth_final);
+        std::println("Relevant Leaves: {}", relevant_leaves);
 
         // Also write final result to log
         log << "=== Final Results ===\n";
@@ -215,6 +203,7 @@ int main(int argc, char* argv[]) {
         log << std::format("Total Nodes:  {}\n", total_nodes_final);
         log << std::format("Leaf Cells:   {}\n", leaf_cells_final);
         log << std::format("Tree Depth:   {}\n", depth_final);
+        log << std::format("Relevant Leaves: {}", relevant_leaves);
         log.flush();
 
         std::println("[Log] PERF: {}", perf_path.string());

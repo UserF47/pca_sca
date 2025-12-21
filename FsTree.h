@@ -8,6 +8,8 @@
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
 
+#include "FunctionPairGenerator.h"
+
 struct LinearConstraint {
     Eigen::VectorXd normal;
     double rhs;
@@ -34,7 +36,8 @@ struct ITreeNode {
     std::unique_ptr<ITreeNode> right;
 
     // Leaf = has no splitting plane yet.
-    bool is_leaf() const { return splitting_plane_id == -1; }
+    // bool is_leaf() const { return splitting_plane_id == -1; }
+    bool is_leaf() const { return left == nullptr && right == nullptr; }
 };
 
 inline void clear_relevance(ITreeNode& node) {
@@ -90,7 +93,10 @@ public:
     // DFS (non-recursive) insertion with group-aware semantics.
     void insert_dfs_non_recursive(const Polytope& root_domain,
                                   const Eigen::VectorXd& h_vec,
-                                  int h_id) {
+                                  int h_id,
+                                  int fi,
+                                  std::size_t n_functions) {
+
         if (!global_planes) {
             throw std::runtime_error("ITreeBuilder::insert_dfs_non_recursive: global_planes is nullptr");
         }
@@ -106,25 +112,7 @@ public:
         std::vector<InsertionJob> stack;
         stack.push_back({root.get(), std::move(initial_fragment)});
 
-        using Clock = std::chrono::steady_clock;
-        auto last_print = Clock::now();
-
         while (!stack.empty()) {
-            auto now = Clock::now();
-            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 30) {
-                std::size_t stack_bytes = stack.capacity() * sizeof(InsertionJob);
-                std::size_t stack_poly_bytes = 0;
-                for (const auto& j : stack) {
-                    stack_poly_bytes += estimate_polytope_memory(j.fragment);
-                }
-                std::println("[DFS] stack size = {}, capacity = {}, stack buffer ≈ {:.2f} KB, polys ≈ {:.2f} KB",
-                             stack.size(),
-                             stack.capacity(),
-                             stack_bytes / 1024.0,
-                             stack_poly_bytes / 1024.0);
-                last_print = now;
-            }
-
             InsertionJob job = std::move(stack.back());
             stack.pop_back();
 
@@ -132,20 +120,25 @@ public:
 
             // === CASE 1: Node is a relevant leaf for some Fj ===
             if (current_node->is_relevant_leaf) {
+                int tree_target_function = current_node->target_function_id;
+                std::size_t plane_index = Generator::pair_index(tree_target_function, fi, n_functions);
+
+                const Eigen::VectorXd& h_pair = (*global_planes)[plane_index];
+
                 // Use the current hyperplane h_vec and the sample point P
                 const Eigen::VectorXd& P = current_node->sample_point;
-                double val = h_vec.dot(P); // h(P)
+                double val = h_pair.dot(P); // h(P)
 
                 // This node is becoming internal
-                current_node->splitting_plane_id = h_id;
-                clear_relevance(*current_node); // remove sample + target function from internal node
+                // current_node->splitting_plane_id = h_id;
+                // clear_relevance(*current_node); // remove sample + target function from internal node
 
                 // Decide which child receives this fragment (Fi vs Fj relation;
                 // using sign of h(P) as a proxy for f_i - f_j > 0 vs < 0).
-                if (val > 0.0) {
+                if (val < 0.0) {
                     // Insert into LEFT subtree
                     stack.push_back({current_node->left.get(), std::move(job.fragment)});
-                } else if (val < 0.0) {
+                } else if (val > 0.0) {
                     // Insert into RIGHT subtree
                     stack.push_back({current_node->right.get(), std::move(job.fragment)});
                 } else {
@@ -160,6 +153,8 @@ public:
                 current_node->splitting_plane_id = h_id;
                 current_node->sample_point.resize(0);
 
+                current_node->target_function_id = fi;
+
                 current_node->left  = std::make_unique<ITreeNode>();
                 current_node->right = std::make_unique<ITreeNode>();
 
@@ -173,7 +168,10 @@ public:
                     }
 
                     current_node->left->sample_point = P;
+                    current_node->left->target_function_id = fi;
+
                     current_node->right->sample_point = P;
+                    current_node->right->target_function_id = fi;
                 }
 
                 // No need to push children onto the stack for this plane:
@@ -257,16 +255,15 @@ public:
 
         int cnt = 0;
         std::vector<const ITreeNode*> st;
-        st.reserve(1024);
         st.push_back(root.get());
 
         while (!st.empty()) {
             const ITreeNode* node = st.back();
             st.pop_back();
             if (!node) continue;
-
+            if (node->is_relevant_leaf) {cnt += 1;}
             if (node->is_leaf()) {
-                if (node->is_relevant_leaf) cnt += 1;
+                // if (node->is_relevant_leaf) cnt += 1;
                 continue;
             }
 
@@ -304,9 +301,9 @@ public:
             }
 
             // Leaf node: set relevance if not already relevant
-            if (!node->is_relevant_leaf) {
+            // Only mark leaves that already belong to Fi.
+            if (!node->is_relevant_leaf && node->target_function_id == fi) {
                 node->is_relevant_leaf = true;
-                node->target_function_id = fi;
 
                 if (!node->left)  node->left  = std::make_unique<ITreeNode>();
                 if (!node->right) node->right = std::make_unique<ITreeNode>();

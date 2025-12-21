@@ -1,5 +1,149 @@
+=== Results after 2000 raw planes ===
+Time:         0.0069 s
+Total Nodes:  2645
+Leaf Cells:   1323
+Tree Depth:   27
+
+=== Results after 3000 raw planes ===
+Time:         0.0106 s
+Total Nodes:  3875
+Leaf Cells:   1938
+Tree Depth:   31
+
+=== Results after 8000 raw planes ===
+Time:         0.0339 s
+Total Nodes:  8667
+Leaf Cells:   4334
+Tree Depth:   70
+
+=== Results after 12000 raw planes ===
+Time:         0.0591 s
+Total Nodes:  12979
+Leaf Cells:   6490
+Tree Depth:   101
+
+=== Results after 13000 raw planes ===
+Time:         0.0658 s
+Total Nodes:  13805
+Leaf Cells:   6903
+Tree Depth:   108
+
+=== Results after 14000 raw planes ===
+Time:         0.0743 s
+Total Nodes:  14841
+Leaf Cells:   7421
+Tree Depth:   116
+
+=== Results after 16000 raw planes ===
+Time:         0.0910 s
+Total Nodes:  16731
+Leaf Cells:   8366
+Tree Depth:   141
+
+=== Results after 17000 raw planes ===
+Time:         0.0989 s
+Total Nodes:  17569
+Leaf Cells:   8785
+Tree Depth:   142
+
+=== Results after 18000 raw planes ===
+Time:         0.1087 s
+Total Nodes:  18629
+Leaf Cells:   9315
+Tree Depth:   145
+
+=== Results after 19000 raw planes ===
+Time:         0.1196 s
+Total Nodes:  19713
+Leaf Cells:   9857
+Tree Depth:   157
+
+=== Results after 21000 raw planes ===
+Time:         0.1497 s
+Total Nodes:  21749
+Leaf Cells:   10875
+Tree Depth:   171
+
+=== Results after 24000 raw planes ===
+Time:         0.1864 s
+Total Nodes:  24671
+Leaf Cells:   12336
+Tree Depth:   184
+
+=== Results after 25000 raw planes ===
+Time:         0.1996 s
+Total Nodes:  25605
+Leaf Cells:   12803
+Tree Depth:   190
+
+=== Results after 26000 raw planes ===
+Time:         0.2144 s
+Total Nodes:  26601
+Leaf Cells:   13301
+Tree Depth:   193
+
+=== Results after 28000 raw planes ===
+Time:         0.2439 s
+Total Nodes:  28613
+Leaf Cells:   14307
+Tree Depth:   206
+
+=== Results after 29000 raw planes ===
+Time:         0.2606 s
+Total Nodes:  29635
+Leaf Cells:   14818
+Tree Depth:   212
+
+=== Results after 33000 raw planes ===
+Time:         0.3161 s
+Total Nodes:  32955
+Leaf Cells:   16478
+Tree Depth:   227
+
+=== Results after 36000 raw planes ===
+Time:         0.3673 s
+Total Nodes:  35769
+Leaf Cells:   17885
+Tree Depth:   246
+
+=== Results after 37000 raw planes ===
+Time:         0.3850 s
+Total Nodes:  36661
+Leaf Cells:   18331
+Tree Depth:   253
+
+=== Results after 39000 raw planes ===
+Time:         0.4243 s
+Total Nodes:  38557
+Leaf Cells:   19279
+Tree Depth:   264
+
+=== Results after 40000 raw planes ===
+Time:         0.4449 s
+Total Nodes:  39473
+Leaf Cells:   19737
+Tree Depth:   271
+
+=== Results after 42000 raw planes ===
+Time:         0.4931 s
+Total Nodes:  41645
+Leaf Cells:   20823
+Tree Depth:   284
+
+=== Results after 43000 raw planes ===
+Time:         0.5162 s
+Total Nodes:  42643
+Leaf Cells:   21322
+Tree Depth:   294
+
+=== Results after 44000 raw planes ===
+Time:         0.5381 s
+Total Nodes:  43571
+Leaf Cells:   21786
+Tree Depth:   300
+
 === Final Results ===
-Time:         0.0400 s
-Total Nodes:  10283
-Leaf Cells:   2571
-Tree Depth:   33
+Time:         0.5583 s
+Total Nodes:  44431
+Leaf Cells:   22216
+Tree Depth:   304

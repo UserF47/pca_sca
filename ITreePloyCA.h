@@ -388,10 +388,33 @@ public:
         return c;
     }
 
-    int count_leaves(const ITreeNode* node = nullptr) {
-        if (!node) node = root.get();
-        if (node->is_leaf()) return 1;
-        return count_leaves(node->left.get()) + count_leaves(node->right.get());
+    // int count_leaves(const ITreeNode* node = nullptr) {
+    //     if (!node) node = root.get();
+    //     if (node->is_leaf()) return 1;
+    //     return count_leaves(node->left.get()) + count_leaves(node->right.get());
+    // }
+
+    size_t count_leaves() const {
+        if (!root) return 0;
+
+        size_t leaves = 0;
+        std::vector<const ITreeNode*> st;
+        st.push_back(root.get());
+
+        while (!st.empty()) {
+            const auto* n = st.back();
+            st.pop_back();
+
+            if (!n) continue;
+
+            if (n->is_leaf()) {
+                ++leaves;
+            } else {
+                st.push_back(n->left.get());
+                st.push_back(n->right.get());
+            }
+        }
+        return leaves;
     }
 
     // Compute maximum depth of the I-Tree

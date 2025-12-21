@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 20
-TICK_FS  = 20
-LEGEND_FS = 16
+LABEL_FS = 24
+TICK_FS  = 24
+LEGEND_FS = 20
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -100,7 +100,7 @@ def plot_fig1_time_vs_intersections_dim3(data, outpath: str):
         ax.plot(xs, ys, marker="o", linewidth=2, label=method)
 
     ax.set_xlabel("#Intersections(dim=3)")
-    ax.set_ylabel("Feasibility Checking Time (minutes)")
+    ax.set_ylabel("Time (min)")
     ax.set_yscale("log")
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)
     ax.legend(frameon=True)
@@ -140,7 +140,7 @@ def plot_fig2_time_vs_dimension_inter300(data, outpath: str):
             ax.plot(xs, ys, marker="o", linewidth=2, label=method)
 
     ax.set_xlabel("Dimension(#intersection=300)")
-    ax.set_ylabel("Feasibility Checking Time (minutes)")
+    ax.set_ylabel("Time (min)")
     ax.set_yscale("log")
     ax.set_xticks(dims)  # show integer dimensions
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)

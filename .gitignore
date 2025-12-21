@@ -11,6 +11,7 @@ Ignore CMake user files
 CMakeUser*.txt
 
 logs/
+logs_FsTree_Storage/
 
 --- macOS ---
 

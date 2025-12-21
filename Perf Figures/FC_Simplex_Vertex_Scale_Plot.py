@@ -6,9 +6,9 @@ from matplotlib.ticker import LogLocator, LogFormatterMathtext
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 20
-TICK_FS  = 22
-LEGEND_FS = 16
+LABEL_FS = 24
+TICK_FS  = 24
+LEGEND_FS = 20
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -119,6 +119,12 @@ def main():
     ax.set_yscale("log", base=10)
     ax.yaxis.set_major_locator(LogLocator(base=10))
     ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))
+
+    ax.yaxis.set_minor_locator(
+        LogLocator(base=10, subs=(2, 3, 4))
+    )
+
+    ax.set_ylim(bottom=100)
 
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)
     ax.legend(frameon=True)

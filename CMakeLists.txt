@@ -134,3 +134,13 @@ add_executable(FsTree
         FsTree.h
         CompactIO.h
 )
+
+## AddressSanitizer for FsTree
+#target_compile_options(FsTree PRIVATE
+#        -fsanitize=address
+#        -fno-omit-frame-pointer
+#)
+#
+#target_link_options(FsTree PRIVATE
+#        -fsanitize=address
+#)
