@@ -144,3 +144,13 @@ add_executable(FsTree
 #target_link_options(FsTree PRIVATE
 #        -fsanitize=address
 #)
+
+# --- Target 10: The OnDemand Function sorting Tree ---
+# Create a file named 'new_main.cpp' to use this!
+add_executable(FsTreeOnDemandPoint
+        FsTreeOnDemandMain.cpp
+        PolytopeStructs.h
+        PolytopeOps.h
+        FsTreeOnDemand.h
+        CompactIO.h
+)
