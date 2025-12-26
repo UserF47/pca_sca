@@ -37,7 +37,41 @@ struct GroupPlan {
     const std::vector<int>& get(int fi) const {
         return fi_to_planes[fi];
     }
+
+    bool all_groups_empty() const {
+        // fi_to_planes is 1-based; index 0 is unused
+        for (std::size_t fi = 1; fi < fi_to_planes.size(); ++fi) {
+            if (!fi_to_planes[fi].empty()) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
+
+
+inline int classify_vertices_against_plane(const std::vector<Eigen::VectorXd>& vertices,
+                                           const Eigen::VectorXd& h_vec,
+                                           double eps = 1e-9) {
+    bool has_pos = false;
+    bool has_neg = false;
+
+    for (const auto& v : vertices) {
+        double d = h_vec.dot(v);
+        if (d > eps) {
+            has_pos = true;
+        } else if (d < -eps) {
+            has_neg = true;
+        }
+        if (has_pos && has_neg) {
+            return 2;  // plane partitions the polytope
+        }
+    }
+
+    if (has_pos && !has_neg) return 1;  // all on the positive side (or on a plane)
+    if (has_neg && !has_pos) return -1; // all on the negative side (or on a plane)
+    return 0;                            // all (approximately) on the plane
+}
 
 
 struct ITreeNode {
@@ -53,12 +87,21 @@ struct ITreeNode {
     // AND should hold a sample point.
     bool is_relevant_leaf = false;
 
+    bool is_on_path = false;
+
     // A sample point inside this node's subdomain.
     // Only meaningful when is_relevant_leaf == true.
     Eigen::VectorXd sample_point;
 
     std::unique_ptr<ITreeNode> left;
     std::unique_ptr<ITreeNode> right;
+
+    Polytope poly;
+    std::vector<Eigen::VectorXd> vertices;
+
+    // Per-node group plan storage: group_plan[fi] is a list of plane indices for function Fi.
+    // 1-based indexing; index 0 is unused.
+    std::vector<std::vector<int>> group_plan;
 
     // Leaf = has no splitting plane yet.
     // bool is_leaf() const { return splitting_plane_id == -1; }
@@ -73,27 +116,8 @@ inline void clear_relevance(ITreeNode& node) {
 
 struct InsertionJob {
     ITreeNode* node;
-    Polytope fragment;
 };
 
-// Rough memory usage estimate for a Polytope in bytes.
-inline std::size_t estimate_polytope_memory(const Polytope& P) {
-    std::size_t bytes = 0;
-
-    // Vertices (shallow estimate: Vertex object only; Eigen storage is dynamic and not fully counted here)
-    bytes += P.vertices.size() * sizeof(Vertex);
-
-    // Edges
-    bytes += P.edges.size() * sizeof(Edge);
-
-    // Constraint map (key + vector header)
-    bytes += P.constraints.size() * (sizeof(int) + sizeof(std::vector<int>));
-    for (const auto& kv : P.constraints) {
-        bytes += kv.second.size() * sizeof(int);
-    }
-
-    return bytes;
-}
 
 class ITreeBuilder {
 public:
@@ -111,48 +135,66 @@ public:
     // NEW: current function whose group we are inserting.
     int current_function_id = -1;
 
-    ITreeBuilder(const Polytope& root_domain) {
+    explicit ITreeBuilder(const Polytope& root_domain) {
         root = std::make_unique<ITreeNode>();
+
+        // Initialize root geometric state from the given root polytope.
+        // We treat root_domain as the cell associated with the root node.
+        root->poly = root_domain;
+
+        // If the Polytope already stores its vertices, copy them.
+        // Otherwise, replace this with your own vertex computation routine.
+        if (!root_domain.vertices.empty()) {
+            // Convert from Polytope::vertices (std::vector<Vertex>) to
+            // the node's cached vertex coordinates (std::vector<Eigen::VectorXd>).
+            root->vertices.clear();
+            root->vertices.reserve(root_domain.vertices.size());
+            for (const auto& v : root_domain.vertices) {
+                // Adjust 'position' to the actual coordinate member of Vertex if different.
+                root->vertices.push_back(v.position);
+            }
+        } else {
+            // e.g., root->vertices = compute_vertices(root_domain);
+            root->vertices.clear();
+        }
     }
 
     // DFS (non-recursive) insertion with group-aware semantics.
-    void insert_dfs_non_recursive(const Polytope& root_domain,
+    void insert_dfs_non_recursive(std::unique_ptr<ITreeNode>::pointer cur_node,
                                   const Eigen::VectorXd& h_vec,
                                   int h_id,
                                   int fi,
                                   std::size_t n_functions,
-                                  const Eigen::VectorXd& p) {
-
+                                  const Eigen::VectorXd& p)
+    {
         if (!global_planes) {
             throw std::runtime_error("ITreeBuilder::insert_dfs_non_recursive: global_planes is nullptr");
         }
 
-        // 1. Initial slice
-        Polytope initial_fragment = slice_polytope(root_domain, h_vec, h_id);
-        if (initial_fragment.vertices.empty()) {
-            // New plane does not intersect domain
-            return;
-        }
-
         // Explicit stack for DFS
         std::vector<InsertionJob> stack;
-        stack.push_back({root.get(), std::move(initial_fragment)});
+        stack.push_back({cur_node});
 
         while (!stack.empty()) {
             InsertionJob job = std::move(stack.back());
             stack.pop_back();
 
-            ITreeNode* current_node = job.node;
+            ITreeNode* node = job.node;
+
+            // If there are still no vertices, this cell is degenerate or empty.
+            if (node->vertices.empty()) {
+                continue;
+            }
 
             // === CASE 1: Node is a relevant leaf for some Fj ===
-            if (current_node->is_relevant_leaf) {
-                int tree_target_function = current_node->target_function_id;
+            if (node->is_relevant_leaf) {
+                int tree_target_function = node->target_function_id;
                 std::size_t plane_index = Generator::pair_index(tree_target_function, fi, n_functions);
 
                 const Eigen::VectorXd& h_pair = (*global_planes)[plane_index];
 
                 // Use the current hyperplane h_vec and the sample point P
-                const Eigen::VectorXd& P = current_node->sample_point;
+                const Eigen::VectorXd& P = node->sample_point;
                 double val = h_pair.dot(P); // h(P)
 
                 // This node is becoming internal
@@ -163,103 +205,87 @@ public:
                 // using sign of h(P) as a proxy for f_i - f_j > 0 vs < 0).
                 if (val < 0.0) {
                     // Insert into LEFT subtree
-                    stack.push_back({current_node->left.get(), std::move(job.fragment)});
+                    stack.push_back({node->left.get()});
                 } else if (val > 0.0) {
                     // Insert into RIGHT subtree
-                    stack.push_back({current_node->right.get(), std::move(job.fragment)});
+                    stack.push_back({node->right.get()});
                 } else {
                     continue;
                 }
                 continue;
             }
 
-            // === CASE 2: Pure leaf with no relevance yet ===
-            if (current_node->is_leaf()) {
-                // Attach the new splitting plane here
-                current_node->splitting_plane_id = h_id;
-                current_node->sample_point.resize(0);
+            using clock = std::chrono::high_resolution_clock;
 
-                current_node->target_function_id = fi;
-
-                current_node->left  = std::make_unique<ITreeNode>();
-                current_node->right = std::make_unique<ITreeNode>();
-
-                // Pick a sample point from the current fragment for this group
-                // and assign it to both children as "relevant leaves"
-                if (!job.fragment.vertices.empty()) {
-                    const Vertex& v0 = job.fragment.vertices.front();
-                    Eigen::VectorXd P(v0.position.size());
-                    for (int d = 0; d < P.size(); ++d) {
-                        P[d] = v0.position[d];
-                    }
-
-                    current_node->left->sample_point = P;
-                    current_node->left->target_function_id = fi;
-
-                    current_node->right->sample_point = P;
-                    current_node->right->target_function_id = fi;
-                }
-
-                // No need to push children onto the stack for this plane:
-                // we've fully propagated this hyperplane at this node.
-                continue;
-            }
-
-            // === CASE 3: Internal node -> route using point p against existing plane ===
-            int existing_id = current_node->splitting_plane_id;
-            const Eigen::VectorXd& h_existing = (*global_planes)[existing_id - 1];
-            const double val_p = h_existing.dot(p);
-            if (val_p < 0.0) {
-                // Route only to LEFT child
-                if (current_node->left) {
-                    stack.push_back({current_node->left.get(), std::move(job.fragment)});
-                }
-                continue;
-            } else if (val_p > 0.0) {
-                // Route only to RIGHT child
-                if (current_node->right) {
-                    stack.push_back({current_node->right.get(), std::move(job.fragment)});
-                }
-                continue;
-            }
-            // If val_p == 0, fall back to exact classification/splitting below.
-
-            using FCClock = std::chrono::high_resolution_clock;
-
-            auto fc0 = FCClock::now();
-            int cls = classify_polytope_against_plane(job.fragment, h_existing);
-            auto fc1 = FCClock::now();
+            auto fc0 = clock::now();
+            int cls = classify_vertices_against_plane(node->vertices, h_vec);
+            auto fc1 = clock::now();
             fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
 
-            if (cls == -1) {
-                // Entire fragment on <= side
-                if (current_node->left) {
-                    stack.push_back({current_node->left.get(), std::move(job.fragment)});
-                }
+            if (cls != 2) {
+                // Plane does not partition this cell; skip its subtree.
                 continue;
             }
 
-            if (cls == 1) {
-                // Entire fragment on >= side
-                if (current_node->right) {
-                    stack.push_back({current_node->right.get(), std::move(job.fragment)});
+            if (node->is_leaf()) {
+                node->target_function_id = fi;
+                const double val_p = h_vec.dot(p);
+
+
+                // Leaf that is actually cut by h_vec -> split its polytope.
+                auto sp0 = clock::now();
+                auto split_result = split_polytope(node->poly, h_vec, h_id);
+                auto sp1 = clock::now();
+                fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
+
+                Polytope& p_pos = split_result.first;   // H(x) >= 0 side
+                Polytope& p_neg = split_result.second;  // H(x) <= 0 side
+
+                node->splitting_plane_id = h_id;
+
+                node->left  = std::make_unique<ITreeNode>();
+                node->right = std::make_unique<ITreeNode>();
+
+                node->left->group_plan.assign(n_functions + 1, {});
+                node->right->group_plan.assign(n_functions + 1, {});
+
+                // Assign child polytopes.
+                node->left->poly  = std::move(p_neg);
+                node->right->poly = std::move(p_pos);
+
+                // Cache child vertices from their polytopes (if available).
+                node->left->vertices.clear();
+                node->left->vertices.reserve(node->left->poly.vertices.size());
+                for (const auto& v : node->left->poly.vertices) {
+                    node->left->vertices.push_back(v.position);
                 }
-                continue;
-            }
 
-            // CASE 3C: True split
-            auto sp0 = FCClock::now();
-            auto split_result = split_polytope(job.fragment, h_existing, existing_id);
-            auto sp1 = FCClock::now();
-            fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(sp1 - sp0);
-            Polytope p_pos = std::move(split_result.first);   // H >= 0
-            Polytope p_neg = std::move(split_result.second);  // H <= 0
+                node->right->vertices.clear();
+                node->right->vertices.reserve(node->right->poly.vertices.size());
+                for (const auto& v : node->right->poly.vertices) {
+                    node->right->vertices.push_back(v.position);
+                }
 
-            if (current_node->right) {
-                stack.push_back({current_node->right.get(), std::move(p_pos)});
+                // Drop the parent polytope to save memory; we keep only its vertices.
+                node->poly = Polytope{};
+
+                if (val_p < 0.0) {
+                    node->left->is_on_path = true;
+                    node->right->group_plan[fi].push_back(h_id);
+                } else {
+                    node->right->is_on_path = true;
+                    node->left->group_plan[fi].push_back(h_id);
+                }
             }
-            if (current_node->left) {
-                stack.push_back({current_node->left.get(), std::move(p_neg)});
+            else {
+                if (node->left && node->left->is_on_path) {
+                    // Route only to LEFT child
+                    stack.push_back({node->left.get()});
+                }
+                if (node->right && node->right->is_on_path) {
+                    // Route only to RIGHT child
+                    stack.push_back({node->right.get()});
+                }
             }
         }
     }
@@ -409,7 +435,7 @@ static void run_grouped_insertion(int n_functions,
             }
 
             // Group-aware insertion
-            builder.insert_dfs_non_recursive(root_poly, planes[plane_index], unique_h_id, fi, n_functions, p);
+            builder.insert_dfs_non_recursive(current_node, planes[plane_index], unique_h_id, fi, n_functions, p);
         }
 
         // After finishing the Fi-group, mark all current leaf nodes as Fi-relevant if they are not relevant yet.

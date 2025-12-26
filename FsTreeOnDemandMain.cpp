@@ -113,10 +113,11 @@ int main(int argc, char* argv[]) {
         builder.global_planes = &planes;
         GroupPlan group_plan(n_functions);
         std::unique_ptr<ITreeNode>::pointer current_node = builder.root.get();
+        current_node->is_on_path = true;
 
 
         // planes is std::vector<Eigen::VectorXd>
-        Eigen::VectorXd p = Eigen::VectorXd::Constant(planes.front().size(), 0.5);
+        Eigen::VectorXd p = Eigen::VectorXd::Constant(planes.front().size(), 0.1);
 
         run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node, p);
 
