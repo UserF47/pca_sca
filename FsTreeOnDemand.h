@@ -259,12 +259,14 @@ public:
                 for (const auto& v : node->left->poly.vertices) {
                     node->left->vertices.push_back(v.position);
                 }
+                node->left->target_function_id = fi;
 
                 node->right->vertices.clear();
                 node->right->vertices.reserve(node->right->poly.vertices.size());
                 for (const auto& v : node->right->poly.vertices) {
                     node->right->vertices.push_back(v.position);
                 }
+                node->right->target_function_id = fi;
 
                 // Drop the parent polytope to save memory; we keep only its vertices.
                 node->poly = Polytope{};
@@ -316,8 +318,8 @@ public:
         return count_leaves(node->left.get()) + count_leaves(node->right.get());
     }
 
-    // Count leaf nodes whose is_relevant_leaf == true (ITERATIVE to avoid stack overflow)
-    int count_relevant_leaves() const {
+    // Count nodes (leaf OR internal) whose is_relevant_leaf == true (ITERATIVE to avoid stack overflow)
+    int count_relevant_nodes() const {
         if (!root) return 0;
 
         int cnt = 0;
@@ -328,15 +330,15 @@ public:
             const ITreeNode* node = st.back();
             st.pop_back();
             if (!node) continue;
-            if (node->is_relevant_leaf) {cnt += 1;}
-            if (node->is_leaf()) {
-                // if (node->is_relevant_leaf) cnt += 1;
-                continue;
+
+            if (node->is_relevant_leaf) {
+                cnt += 1;
             }
 
             if (node->left)  st.push_back(node->left.get());
             if (node->right) st.push_back(node->right.get());
         }
+
         return cnt;
     }
 
@@ -378,7 +380,7 @@ public:
         }
     }
 
-    void mark_all_leaves_relevant_from(ITreeNode* start_node, int fi) {
+    void mark_all_leaves_relevant_from(ITreeNode* start_node, int fi, int n_functions) {
         if (!start_node) return;
 
         std::vector<ITreeNode*> st;
@@ -397,15 +399,113 @@ public:
             }
 
             // Leaf node: set relevance if not already relevant
-            // Only mark leaves that already belong to Fi
-            if (!node->is_relevant_leaf && node->target_function_id == fi) {
+            // Only mark leaves that already belong to Fi and are on-path.
+            if (!node->is_relevant_leaf && node->target_function_id == fi && node->is_on_path == true) {
+
+                // Relevant-leaf routing in insert_dfs_non_recursive uses node->sample_point.
+                // Pick a deterministic point (a cached vertex) if it's missing.
+                if (node->sample_point.size() == 0) {
+                    if (!node->vertices.empty()) {
+                        node->sample_point = node->vertices.front();
+                    } else if (!node->poly.vertices.empty()) {
+                        node->sample_point = node->poly.vertices.front().position;
+                    } else {
+                        // Degenerate leaf: cannot route without a point.
+                        continue;
+                    }
+                }
+
                 node->is_relevant_leaf = true;
 
+                // Ensure children exist (insert_dfs_non_recursive assumes left/right non-null for relevant leaves)
                 if (!node->left)  node->left  = std::make_unique<ITreeNode>();
                 if (!node->right) node->right = std::make_unique<ITreeNode>();
+
+                // Init/copy group plans (copy if parent already has one)
+                if (!node->group_plan.empty()) {
+                    node->left->group_plan  = node->group_plan;
+                    node->right->group_plan = node->group_plan;
+                } else {
+                    node->left->group_plan.assign(n_functions + 1, {});
+                    node->right->group_plan.assign(n_functions + 1, {});
+                }
+
+                // IMPORTANT: do NOT std::move(node->poly) twice.
+                // Give both children the same polytope. (Assumes Polytope is copyable.)
+                node->left->poly  = node->poly;
+                node->right->poly = node->poly;
+
+                // Cache child vertices from their polytopes (if available).
+                node->left->vertices.clear();
+                node->left->vertices.reserve(node->left->poly.vertices.size());
+                for (const auto& v : node->left->poly.vertices) {
+                    node->left->vertices.push_back(v.position);
+                }
+
+                node->right->vertices.clear();
+                node->right->vertices.reserve(node->right->poly.vertices.size());
+                for (const auto& v : node->right->poly.vertices) {
+                    node->right->vertices.push_back(v.position);
+                }
+
+                // Optional memory saving: parent becomes a routing gate now
+                node->poly = Polytope{};
             }
         }
     }
+
+    // Reset is_on_path flags for the whole tree (or a subtree) so a new query point can be used.
+    void reset_on_path_flags(ITreeNode* start = nullptr) {
+        ITreeNode* s = start ? start : root.get();
+        if (!s) return;
+
+        std::vector<ITreeNode*> st;
+        st.push_back(s);
+        while (!st.empty()) {
+            ITreeNode* node = st.back();
+            st.pop_back();
+            if (!node) continue;
+
+            node->is_on_path = false;
+
+            if (node->left)  st.push_back(node->left.get());
+            if (node->right) st.push_back(node->right.get());
+        }
+    }
+
+    // Find the node (typically a leaf) that contains point p by following splitting planes.
+    // NOTE: This uses `splitting_plane_id` only. If a node has children but `splitting_plane_id == -1`
+    // (e.g., a routing gate created by mark_all_leaves_relevant_from), traversal stops at that node.
+    ITreeNode* find_node_by_point(const Eigen::VectorXd& p, ITreeNode* start = nullptr) const {
+        ITreeNode* node = start ? start : root.get();
+        if (!node) return nullptr;
+        if (!global_planes) return node;
+
+        while (node && !node->is_leaf()) {
+            const int hid = node->splitting_plane_id;
+            if (hid <= 0) {
+                // Cannot traverse without a splitting plane.
+                break;
+            }
+
+            const Eigen::VectorXd& h = (*global_planes)[hid - 1];
+            const double val = h.dot(p);
+
+            if (val < 0.0) {
+                if (!node->left) break;
+                node = node->left.get();
+            } else if (val > 0.0) {
+                if (!node->right) break;
+                node = node->right.get();
+            } else {
+                // On the plane: stop deterministically at current node.
+                break;
+            }
+        }
+
+        return node;
+    }
+
 };
 
 static void run_grouped_insertion(int n_functions,
@@ -438,7 +538,11 @@ static void run_grouped_insertion(int n_functions,
             builder.insert_dfs_non_recursive(current_node, planes[plane_index], unique_h_id, fi, n_functions, p);
         }
 
+        const int depth_now = builder.compute_depth(current_node);
+        std::println("[FsTreeOnDemand] After Fi = {}, tree depth = {}", fi, depth_now);
+        const int rel_nodes = builder.count_relevant_nodes();
+        std::println("[FsTreeOnDemand] After Fi = {}, count_relevant_nodes= {}", fi, rel_nodes);
         // After finishing the Fi-group, mark all current leaf nodes as Fi-relevant if they are not relevant yet.
-        builder.mark_all_leaves_relevant_from(current_node, fi);
+        builder.mark_all_leaves_relevant_from(current_node, fi, n_functions);
     }
 }

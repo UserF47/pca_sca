@@ -118,11 +118,30 @@ int main(int argc, char* argv[]) {
 
         // planes is std::vector<Eigen::VectorXd>
         Eigen::VectorXd p = Eigen::VectorXd::Constant(planes.front().size(), 0.1);
+        Eigen::VectorXd p2 = Eigen::VectorXd::Constant(planes.front().size(), 0.5);
 
         run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node, p);
 
+        // Clear old path marks and locate the subtree root for the same point p.
+        builder.reset_on_path_flags();
+        current_node = builder.find_node_by_point(p2);
+        // at here print all information for current_node
+        // Print whether all groups in current_node->group_plan are empty
+        if (!current_node) {
+            std::println("[Node] current_node is nullptr (cannot check group_plan)");
+        } else {
+            bool all_empty = true;
+            for (const auto& grp : current_node->group_plan) {
+                if (!grp.empty()) {
+                    all_empty = false;
+                    break;
+                }
+            }
+            std::println("[Node] group_plan all groups empty: {}", all_empty);
+        }
+
         double fc_sec = builder.get_fc_time_sec();
-        int relevant_leaves = builder.count_relevant_leaves();
+        int relevant_leaves = builder.count_relevant_nodes();
         perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec, relevant_leaves);
         perf_log.flush();
 
