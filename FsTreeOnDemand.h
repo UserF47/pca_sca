@@ -10,6 +10,10 @@
 
 #include "FunctionPairGenerator.h"
 
+#include <unordered_set>   // for highlight set
+#include <unordered_map>   // for DOT id mapping
+#include <cstdlib>         // for std::system
+
 struct LinearConstraint {
     Eigen::VectorXd normal;
     double rhs;
@@ -283,10 +287,12 @@ public:
                 if (node->left && node->left->is_on_path) {
                     // Route only to LEFT child
                     stack.push_back({node->left.get()});
+                    node->right->group_plan[fi].push_back(h_id);
                 }
                 if (node->right && node->right->is_on_path) {
                     // Route only to RIGHT child
                     stack.push_back({node->right.get()});
+                    node->left->group_plan[fi].push_back(h_id);
                 }
             }
         }
@@ -473,37 +479,151 @@ public:
         }
     }
 
-    // Find the node (typically a leaf) that contains point p by following splitting planes.
-    // NOTE: This uses `splitting_plane_id` only. If a node has children but `splitting_plane_id == -1`
-    // (e.g., a routing gate created by mark_all_leaves_relevant_from), traversal stops at that node.
-    ITreeNode* find_node_by_point(const Eigen::VectorXd& p, ITreeNode* start = nullptr) const {
-        ITreeNode* node = start ? start : root.get();
-        if (!node) return nullptr;
-        if (!global_planes) return node;
+    // Return ALL leaf nodes reached by point p.
+    // If node->is_relevant_leaf == true, expand BOTH children (no routing).
+    // Only leaf nodes are appended to the result.
+    std::vector<ITreeNode*> find_leaves_by_point(const Eigen::VectorXd& p,
+                                                 ITreeNode* start = nullptr,
+                                                 bool verbose = false) const
+    {
+        std::vector<ITreeNode*> leaves;
 
-        while (node && !node->is_leaf()) {
+        ITreeNode* s = start ? start : root.get();
+        if (!s) return leaves;
+
+        if (!global_planes) {
+            // Without planes, we cannot route; only return if start is already a leaf.
+            if (s->is_leaf()) leaves.push_back(s);
+            return leaves;
+        }
+
+        std::vector<ITreeNode*> st;
+        st.push_back(s);
+
+        while (!st.empty()) {
+            ITreeNode* node = st.back();
+            st.pop_back();
+            if (!node) continue;
+
+            // Rule: only append leaves
+            if (node->is_leaf()) {
+                if (verbose) {
+                    std::println("[find_leaves_by_point] leaf ptr={}", static_cast<const void*>(node));
+                }
+                leaves.push_back(node);
+                continue;
+            }
+
+            // Relevant: expand both children
+            if (node->is_relevant_leaf) {
+                if (verbose) {
+                    std::println("[find_leaves_by_point] relevant ptr={} -> expand both",
+                                 static_cast<const void*>(node));
+                }
+                if (node->left)  st.push_back(node->left.get());
+                if (node->right) st.push_back(node->right.get());
+                // If children are missing, we stop this branch (do not append).
+                continue;
+            }
+
+            // Normal internal: route by splitting plane
             const int hid = node->splitting_plane_id;
             if (hid <= 0) {
-                // Cannot traverse without a splitting plane.
-                break;
+                if (verbose) {
+                    std::println("[find_leaves_by_point] ptr={} internal but hid={} -> stop branch",
+                                 static_cast<const void*>(node), hid);
+                }
+                continue; // not a leaf => do not append
             }
 
             const Eigen::VectorXd& h = (*global_planes)[hid - 1];
             const double val = h.dot(p);
 
+            if (verbose) {
+                std::println("[find_leaves_by_point] ptr={} hid={} val={:.6f}",
+                             static_cast<const void*>(node), hid, val);
+            }
+
             if (val < 0.0) {
-                if (!node->left) break;
-                node = node->left.get();
-            } else if (val > 0.0) {
-                if (!node->right) break;
-                node = node->right.get();
+                if (node->left) st.push_back(node->left.get());
             } else {
-                // On the plane: stop deterministically at current node.
-                break;
+                if (node->right) st.push_back(node->right.get());
             }
         }
 
-        return node;
+        return leaves;
+    }
+
+    void export_tree_to_dot(const std::string& dot_path,
+                            const ITreeNode* start,
+                            const std::unordered_set<const ITreeNode*>& highlight) const
+    {
+        const ITreeNode* s = start ? start : root.get();
+        std::ofstream out(dot_path, std::ios::trunc);
+        if (!out) throw std::runtime_error(std::format("Failed to open DOT file: {}", dot_path));
+
+        out << "digraph FsTree {\n";
+        out << "  rankdir=TB;\n";
+        out << "  node [shape=box, fontname=\"Helvetica\", fontsize=10];\n";
+        out << "  edge [fontname=\"Helvetica\", fontsize=9];\n";
+        if (!s) { out << "}\n"; return; }
+
+        std::unordered_map<const ITreeNode*, int> id;
+        id.reserve(1024);
+
+        auto get_id = [&id](const ITreeNode* n) -> int {
+            auto it = id.find(n);
+            if (it != id.end()) return it->second;
+            int new_id = (int)id.size();
+            id.emplace(n, new_id);
+            return new_id;
+        };
+
+        std::vector<const ITreeNode*> st{ s };
+        while (!st.empty()) {
+            const ITreeNode* n = st.back();
+            st.pop_back();
+            if (!n) continue;
+
+            const int nid = get_id(n);
+
+            const bool hi = highlight.contains(n);
+            out << "  n" << nid << " [label=\""
+                << "fi=" << n->target_function_id << "\\n"
+                << "rel=" << (n->is_relevant_leaf ? 1 : 0) << "\\n"
+                << "path=" << (n->is_on_path ? 1 : 0)
+                << "\"";
+
+            if (hi) {
+                out << ", style=filled, fillcolor=\"yellow\"";
+            }
+            out << "];\n";
+
+            if (n->left) {
+                const ITreeNode* L = n->left.get();
+                out << "  n" << nid << " -> n" << get_id(L) << " [label=\"L\"];\n";
+                st.push_back(L);
+            }
+            if (n->right) {
+                const ITreeNode* R = n->right.get();
+                out << "  n" << nid << " -> n" << get_id(R) << " [label=\"R\"];\n";
+                st.push_back(R);
+            }
+        }
+
+        out << "}\n";
+    }
+
+    // Export to PDF by invoking Graphviz `dot`. Returns true on success.
+    // This will create an intermediate DOT file next to the PDF.
+    bool export_tree_to_pdf(const std::string& pdf_path,
+                            const ITreeNode* start,
+                            const std::unordered_set<const ITreeNode*>& highlight) const
+    {
+        const std::string dot_path = pdf_path + ".dot";
+        export_tree_to_dot(dot_path, start, highlight);
+        const std::string cmd = std::format("dot -Tpdf \"{}\" -o \"{}\"", dot_path, pdf_path);
+        return std::system(cmd.c_str()) == 0;
     }
 
 };
@@ -523,6 +643,11 @@ static void run_grouped_insertion(int n_functions,
     // Insert in groups: {F1-related}, {F2-related}, ..., {Fn-related}
     for (int fi = 1; fi <= n_functions; ++fi) {
         builder.current_function_id = fi; // Fi is 1-based
+
+        // NEW: skip empty Fi-group
+        if (group_plan.get(fi).empty()) {
+            continue;
+        }
 
         for (int plane_index_i : group_plan.get(fi)) {
             const std::size_t plane_index = static_cast<std::size_t>(plane_index_i);

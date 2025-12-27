@@ -15,6 +15,10 @@
 #include "FsTreeOnDemand.h"
 #include "FunctionPairGenerator.h"
 
+#include <unordered_set>   // for highlight set
+#include <unordered_map>   // for DOT id mapping
+#include <cstdlib>         // for std::system
+
 
 int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
@@ -118,27 +122,90 @@ int main(int argc, char* argv[]) {
 
         // planes is std::vector<Eigen::VectorXd>
         Eigen::VectorXd p = Eigen::VectorXd::Constant(planes.front().size(), 0.1);
-        Eigen::VectorXd p2 = Eigen::VectorXd::Constant(planes.front().size(), 0.5);
+        Eigen::VectorXd p2 = Eigen::VectorXd::Constant(planes.front().size(), 0.9);
 
         run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node, p);
 
+        // auto res = builder.export_tree_to_pdf("tree.pdf");                 // whole tree
+
         // Clear old path marks and locate the subtree root for the same point p.
-        builder.reset_on_path_flags();
-        current_node = builder.find_node_by_point(p2);
-        // at here print all information for current_node
-        // Print whether all groups in current_node->group_plan are empty
-        if (!current_node) {
-            std::println("[Node] current_node is nullptr (cannot check group_plan)");
-        } else {
+        // builder.reset_on_path_flags();
+        auto leaves = builder.find_leaves_by_point(p2, builder.root.get(), /*verbose=*/true);
+
+        std::unordered_set<const ITreeNode*> hi;
+        hi.reserve(leaves.size());
+        for (auto* x : leaves) hi.insert(x);
+
+        builder.export_tree_to_pdf("tree_highlight.pdf", builder.root.get(), hi);
+
+        std::println("Returned leaf nodes: {}", leaves.size());
+
+        int idx = 0;
+        for (ITreeNode* n : leaves) {
             bool all_empty = true;
-            for (const auto& grp : current_node->group_plan) {
+            for (const auto& grp : n->group_plan) {
                 if (!grp.empty()) {
                     all_empty = false;
                     break;
                 }
             }
-            std::println("[Node] group_plan all groups empty: {}", all_empty);
+
+            std::println(
+                "\n[Leaf {}] ptr={}  target_fi={}  is_relevant={}  group_plan_all_empty={}",
+                idx++,
+                static_cast<const void*>(n),
+                n->target_function_id,
+                n->is_relevant_leaf,
+                all_empty
+            );
+
+            // If NOT empty, print group plan in detail
+            if (!all_empty) {
+                std::println("  group_plan details:");
+                for (std::size_t fi = 1; fi < n->group_plan.size(); ++fi) {
+                    const auto& lst = n->group_plan[fi];
+                    if (!lst.empty()) {
+                        std::print("    Fi {} -> {} plane ids: ", fi, lst.size());
+                        for (std::size_t j = 0; j < lst.size(); ++j) {
+                            std::print("{}{}", lst[j], (j + 1 < lst.size() ? ", " : ""));
+                        }
+                        std::println("");
+                    }
+                }
+            }
         }
+
+
+        std::println("Returned leaf nodes: {}", leaves.size());
+
+        idx = 0;
+        for (ITreeNode* n : leaves) {
+            bool all_empty = true;
+            for (const auto& grp : n->group_plan) {
+                if (!grp.empty()) {
+                    all_empty = false;
+                    break;
+                }
+            }
+
+            std::println(
+                "\n[Leaf {}] ptr={}  target_fi={}  is_relevant={}  group_plan_all_empty={}",
+                idx++,
+                static_cast<const void*>(n),
+                n->target_function_id,
+                n->is_relevant_leaf,
+                all_empty
+            );
+
+            // If NOT empty, print group plan in detail
+            if (!all_empty) {
+                std::println("  group_plan details:");
+                GroupPlan gp(0);
+                gp.fi_to_planes = n->group_plan;
+                run_grouped_insertion(n_functions, gp, builder, n->poly, n, p2);
+            }
+        }
+
 
         double fc_sec = builder.get_fc_time_sec();
         int relevant_leaves = builder.count_relevant_nodes();
