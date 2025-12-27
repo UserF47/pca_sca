@@ -154,3 +154,13 @@ add_executable(FsTreeOnDemandPoint
         FsTreeOnDemand.h
         CompactIO.h
 )
+
+# --- Target 11: The OnDemand Function sorting Tree ---
+# Create a file named 'new_main.cpp' to use this!
+add_executable(FsTreeOnDemandDomain
+        FsTreeOnDemandDomainMain.cpp
+        PolytopeStructs.h
+        PolytopeOps.h
+        FsTreeOnDemandDomain.h
+        CompactIO.h
+)

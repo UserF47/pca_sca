@@ -103,6 +103,8 @@ struct ITreeNode {
     Polytope poly;
     std::vector<Eigen::VectorXd> vertices;
 
+    Polytope input_poly;
+
     // Per-node group plan storage: group_plan[fi] is a list of plane indices for function Fi.
     // 1-based indexing; index 0 is unused.
     std::vector<std::vector<int>> group_plan;
@@ -168,8 +170,7 @@ public:
                                   const Eigen::VectorXd& h_vec,
                                   int h_id,
                                   int fi,
-                                  std::size_t n_functions,
-                                  const Eigen::VectorXd& p)
+                                  std::size_t n_functions)
     {
         if (!global_planes) {
             throw std::runtime_error("ITreeBuilder::insert_dfs_non_recursive: global_planes is nullptr");
@@ -233,8 +234,8 @@ public:
 
             if (node->is_leaf()) {
                 node->target_function_id = fi;
-                const double val_p = h_vec.dot(p);
 
+                int cls = classify_polytope_against_plane(job.node->input_poly, h_vec);
 
                 // Leaf that is actually cut by h_vec -> split its polytope.
                 auto sp0 = clock::now();
@@ -275,12 +276,20 @@ public:
                 // Drop the parent polytope to save memory; we keep only its vertices.
                 node->poly = Polytope{};
 
-                if (val_p < 0.0) {
+                if (cls == -1) {
                     node->left->is_on_path = true;
                     node->right->group_plan[fi].push_back(h_id);
-                } else {
+                    node->left->input_poly = std::move(node->input_poly);
+                } else if (cls == 1) {
                     node->right->is_on_path = true;
                     node->left->group_plan[fi].push_back(h_id);
+                    node->right->input_poly = std::move(node->input_poly);
+                } else {
+                    node->left->is_on_path = true;
+                    node->right->is_on_path = true;
+                    auto split_result = split_polytope(node->input_poly, h_vec, h_id);
+                    node->left->input_poly= std::move(split_result.first);   // H_existing >= 0
+                    node->right->input_poly = std::move(split_result.second);  // H_existing <= 0
                 }
             }
             else {
@@ -632,8 +641,7 @@ static void run_grouped_insertion(int n_functions,
                                  const GroupPlan& group_plan,
                                  ITreeBuilder& builder,
                                  const Polytope& root_poly,
-                                 std::unique_ptr<ITreeNode>::pointer current_node,
-                                 const Eigen::VectorXd& p)
+                                 std::unique_ptr<ITreeNode>::pointer current_node)
 {
     if (!builder.global_planes) {
         throw std::runtime_error("builder.global_planes is null");
@@ -660,7 +668,7 @@ static void run_grouped_insertion(int n_functions,
             }
 
             // Group-aware insertion
-            builder.insert_dfs_non_recursive(current_node, planes[plane_index], unique_h_id, fi, n_functions, p);
+            builder.insert_dfs_non_recursive(current_node, planes[plane_index], unique_h_id, fi, n_functions);
         }
 
         const int depth_now = builder.compute_depth(current_node);
