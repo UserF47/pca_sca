@@ -1,6 +1,6 @@
 === Final Results ===
-Time:         0.0152 s
-Total Nodes:  229
-Leaf Cells:   115
-Tree Depth:   61
-Relevant Leaves: 31
+Time:         27.4607 s
+Total Nodes:  243
+Leaf Cells:   122
+Tree Depth:   85
+Relevant Leaves: 26

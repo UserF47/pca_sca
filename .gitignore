@@ -12,6 +12,7 @@ CMakeUser*.txt
 
 logs/
 
+*.bin
 
 --- macOS ---
 
