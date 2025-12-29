@@ -314,12 +314,12 @@ public:
                     node->left->is_on_path = true;
                     node->right->group_plan[fi].push_back(h_id);
 
-                    node->left->input_poly = node->input_poly;
+                    node->left->input_poly = std::move(node->input_poly);
                 } else if (cls2 == 1) {
                     node->right->is_on_path = true;
                     node->left->group_plan[fi].push_back(h_id);
 
-                    node->right->input_poly = node->input_poly;
+                    node->right->input_poly = std::move(node->input_poly);
                 } else {
                     node->left->is_on_path = true;
                     node->right->is_on_path = true;
@@ -335,6 +335,7 @@ public:
                     node->left->input_poly  = std::move(p2);
                     node->right->input_poly = std::move(p1);
                 }
+                node->input_poly = Polytope{};
             }
             else {
                 if (node->left && node->left->is_on_path) {

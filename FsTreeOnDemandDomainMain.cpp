@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
         Eigen::VectorXd p_low = Eigen::VectorXd::Constant(dim, 0.5);
 
         // Side length (choose what you want)
-        double length = 0.1;
+        double length = 0.05;
 
         // Root domain = [p_low, p_low + length]^dim
         Polytope input_domain = create_input_domain_poly(dim, p_low, length);
