@@ -202,12 +202,6 @@ public:
                 const Eigen::VectorXd& P = node->sample_point;
                 double val = h_pair.dot(P); // h(P)
 
-                // This node is becoming internal
-                // current_node->splitting_plane_id = h_id;
-                // clear_relevance(*current_node); // remove sample + target function from internal node
-
-                // Decide which child receives this fragment (Fi vs Fj relation;
-                // using sign of h(P) as a proxy for f_i - f_j > 0 vs < 0).
                 if (val < 0.0) {
                     // Insert into LEFT subtree
                     stack.push_back({node->left.get()});
@@ -228,14 +222,21 @@ public:
             fc_time_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(fc1 - fc0);
 
             if (cls != 2) {
-                // Plane does not partition this cell; skip its subtree.
                 continue;
             }
 
             if (node->is_leaf()) {
                 node->target_function_id = fi;
 
-                int cls = classify_polytope_against_plane(job.node->input_poly, h_vec);
+                // std::println("[insert_dfs_non_recursive] Split polytope");
+                //
+                // std::println("[insert_dfs_non_recursive] poly");
+                // print_polytope(node->poly);
+                // std::println("[insert_dfs_non_recursive] input domain");
+                // print_polytope(node->input_poly);
+
+                int cls3 = classify_vertices_against_plane(node->vertices, h_vec);
+                // std::println("[insert_dfs_non_recursive] cls3 {}", cls3);
 
                 // Leaf that is actually cut by h_vec -> split its polytope.
                 auto sp0 = clock::now();
@@ -276,20 +277,55 @@ public:
                 // Drop the parent polytope to save memory; we keep only its vertices.
                 node->poly = Polytope{};
 
-                if (cls == -1) {
+                // print_polytope(node->left->poly);
+                // print_polytope(node->right->poly);
+
+                auto split_res = split_polytope(node->input_poly, h_vec, h_id);
+                // int cls2 = classify_polytope_against_plane_v2(node->input_poly, h_vec);
+
+                // std::println("[insert_dfs_non_recursive] cls2 {}", cls2);
+                //
+                // Polytope& p1 = split_res.first;   // H(x) >= 0 side
+                // Polytope& p2 = split_res.second;  // H(x) <= 0 side
+                //
+                // print_polytope(p1);
+                // print_polytope(p2);
+                //
+                // node->left->is_on_path = true;
+                // node->right->is_on_path = true;
+                //
+                // node->left->input_poly  = std::move(p2);
+                // node->right->input_poly = std::move(p1);
+                //
+                // std::println("[insert_dfs_non_recursive] End");
+                // continue;
+
+                int cls2 = classify_polytope_against_plane_v2(node->input_poly, h_vec);
+
+                if (cls2 == -1) {
                     node->left->is_on_path = true;
                     node->right->group_plan[fi].push_back(h_id);
-                    node->left->input_poly = std::move(node->input_poly);
-                } else if (cls == 1) {
+
+                    node->left->input_poly = node->input_poly;
+                } else if (cls2 == 1) {
                     node->right->is_on_path = true;
                     node->left->group_plan[fi].push_back(h_id);
-                    node->right->input_poly = std::move(node->input_poly);
+
+                    node->right->input_poly = node->input_poly;
                 } else {
                     node->left->is_on_path = true;
                     node->right->is_on_path = true;
-                    auto split_result = split_polytope(node->input_poly, h_vec, h_id);
-                    node->left->input_poly= std::move(split_result.first);   // H_existing >= 0
-                    node->right->input_poly = std::move(split_result.second);  // H_existing <= 0
+
+                    auto split_res = split_polytope(node->input_poly, h_vec, h_id);
+
+                    Polytope& p1 = split_res.first;   // H(x) >= 0 side
+                    Polytope& p2 = split_res.second;  // H(x) <= 0 side
+
+                    print_polytope(p1);
+                    print_polytope(p2);
+
+                    node->left->input_poly  = std::move(p2);
+                    node->right->input_poly = std::move(p1);
                 }
             }
             else {
@@ -449,6 +485,12 @@ public:
                 // Give both children the same polytope. (Assumes Polytope is copyable.)
                 node->left->poly  = node->poly;
                 node->right->poly = node->poly;
+
+                node->left->input_poly  = node->input_poly;
+                node->right->input_poly = node->input_poly;
+
+                print_polytope(node->left->input_poly);
+                print_polytope(node->right->input_poly);
 
                 // Cache child vertices from their polytopes (if available).
                 node->left->vertices.clear();
@@ -646,6 +688,7 @@ static void run_grouped_insertion(int n_functions,
     if (!builder.global_planes) {
         throw std::runtime_error("builder.global_planes is null");
     }
+
     const auto& planes = *builder.global_planes;
 
     // Insert in groups: {F1-related}, {F2-related}, ..., {Fn-related}

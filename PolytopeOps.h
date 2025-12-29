@@ -187,6 +187,22 @@ inline int classify_polytope_against_plane(const Polytope& P, const Eigen::Vecto
     return -1;
 }
 
+inline int classify_polytope_against_plane_v2(const Polytope& P, const Eigen::VectorXd& H, double eps = 1e-9) {
+    bool has_pos = false, has_neg = false;
+    for (const auto& v : P.vertices) {
+        double d = H.dot(v.position);
+        if (d > eps) {
+            has_pos = true;
+        } else if (d < -eps) {
+            has_neg = true;
+        }
+        if (has_pos && has_neg) return 2;
+    }
+    if (has_pos && !has_neg) return 1;  // all on the positive side (or on a plane)
+    if (has_neg && !has_pos) return -1; // all on the negative side (or on a plane)
+    return 0;                            // all (approximately) on the plane
+}
+
 inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int h_id) {
     Polytope result_poly;
     result_poly.dim = P.dim;

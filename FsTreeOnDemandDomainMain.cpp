@@ -129,7 +129,9 @@ int main(int argc, char* argv[]) {
         Polytope input_domain = create_input_domain_poly(dim, p_low, length);
         current_node->input_poly = input_domain;
 
-        print_polytope(input_domain);
+        print_polytope(current_node->input_poly);
+
+        print_polytope(current_node->poly);
 
         run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node);
 
@@ -137,8 +139,8 @@ int main(int argc, char* argv[]) {
 
         // Clear old path marks and locate the subtree root for the same point p.
         // builder.reset_on_path_flags();
-        // auto leaves = builder.find_leaves_by_point(p2, builder.root.get(), /*verbose=*/false);
-
+        // std::vector<ITreeNode*> leaves;
+        //
         // std::unordered_set<const ITreeNode*> hi;
         // hi.reserve(leaves.size());
         // for (auto* x : leaves) hi.insert(x);
