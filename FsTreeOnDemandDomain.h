@@ -130,9 +130,14 @@ public:
     // FC time for FsTree: classify_polytope_against_plane(...) + split_polytope(...)
     // Accumulated across the whole run (all inserted planes).
     std::chrono::nanoseconds fc_time_ns{0};
+    std::chrono::nanoseconds fc_time_ns_2{0};
 
     double get_fc_time_sec() const {
         return static_cast<double>(fc_time_ns.count()) / 1e9;
+    }
+
+    double get_fc_time_sec_2() const {
+        return static_cast<double>(fc_time_ns_2.count()) / 1e9;
     }
 
     std::unique_ptr<ITreeNode> root;
@@ -280,7 +285,10 @@ public:
                 // print_polytope(node->left->poly);
                 // print_polytope(node->right->poly);
 
+                auto sp2 = clock::now();
                 auto split_res = split_polytope(node->input_poly, h_vec, h_id);
+                auto sp3 = clock::now();
+                fc_time_ns_2 += std::chrono::duration_cast<std::chrono::nanoseconds>(sp3 - sp2);
                 // int cls2 = classify_polytope_against_plane_v2(node->input_poly, h_vec);
 
                 // std::println("[insert_dfs_non_recursive] cls2 {}", cls2);
@@ -321,8 +329,8 @@ public:
                     Polytope& p1 = split_res.first;   // H(x) >= 0 side
                     Polytope& p2 = split_res.second;  // H(x) <= 0 side
 
-                    print_polytope(p1);
-                    print_polytope(p2);
+                    // print_polytope(p1);
+                    // print_polytope(p2);
 
                     node->left->input_poly  = std::move(p2);
                     node->right->input_poly = std::move(p1);
@@ -489,8 +497,8 @@ public:
                 node->left->input_poly  = node->input_poly;
                 node->right->input_poly = node->input_poly;
 
-                print_polytope(node->left->input_poly);
-                print_polytope(node->right->input_poly);
+                // print_polytope(node->left->input_poly);
+                // print_polytope(node->right->input_poly);
 
                 // Cache child vertices from their polytopes (if available).
                 node->left->vertices.clear();

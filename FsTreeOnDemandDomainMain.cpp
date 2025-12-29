@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     namespace fs = std::filesystem;
 
     auto ensure_logs_dir = []() -> fs::path {
-        fs::path logs_dir = "logs_FsTree_Storage";
+        fs::path logs_dir = "logs_FsTreePerf_OnDemand_Domain";
         std::error_code ec;
         fs::create_directories(logs_dir, ec);
         return logs_dir;
@@ -51,13 +51,13 @@ int main(int argc, char* argv[]) {
 
     // NEW: per-fi FC + relevant-leaf log
     fs::path perf_dir = ensure_logs_dir();
-    const std::string perf_base = std::format("FsTreePerf_FC_{}_{}", dim, n_functions);
+    const std::string perf_base = std::format("FsTreePerf_OnDemand_Domain_{}_{}", dim, n_functions);
     fs::path perf_path = perf_dir / (perf_base + ".txt");
     std::ofstream perf_log(perf_path, std::ios::trunc);
     if (!perf_log) {
         throw std::runtime_error(std::format("Failed to open perf log file: {}", perf_path.string()));
     }
-    perf_log << "fi\tfc_sec\trelevant_leaves\n";
+    perf_log << "fi\tfc_sec\tfc_sec_2\n";
     perf_log.flush();
 
     std::println("==========================================");
@@ -129,9 +129,9 @@ int main(int argc, char* argv[]) {
         Polytope input_domain = create_input_domain_poly(dim, p_low, length);
         current_node->input_poly = input_domain;
 
-        print_polytope(current_node->input_poly);
-
-        print_polytope(current_node->poly);
+        // print_polytope(current_node->input_poly);
+        //
+        // print_polytope(current_node->poly);
 
         run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node);
 
@@ -217,8 +217,9 @@ int main(int argc, char* argv[]) {
 
 
         double fc_sec = builder.get_fc_time_sec();
+        double fc_sec2 = builder.get_fc_time_sec_2();
         int relevant_leaves = builder.count_relevant_nodes();
-        perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec, relevant_leaves);
+        perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec + fc_sec2, fc_sec2);
         perf_log.flush();
 
 
