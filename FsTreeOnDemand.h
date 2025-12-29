@@ -128,10 +128,16 @@ public:
     // FC time for FsTree: classify_polytope_against_plane(...) + split_polytope(...)
     // Accumulated across the whole run (all inserted planes).
     std::chrono::nanoseconds fc_time_ns{0};
+    std::chrono::nanoseconds fc_time_ns_find_point{0};
 
     double get_fc_time_sec() const {
         return static_cast<double>(fc_time_ns.count()) / 1e9;
     }
+
+    double get_fc_time_find_point_sec() const {
+        return static_cast<double>(fc_time_ns_find_point.count()) / 1e9;
+    }
+
 
     std::unique_ptr<ITreeNode> root;
     const std::vector<Eigen::VectorXd>* global_planes = nullptr;
@@ -234,7 +240,6 @@ public:
             if (node->is_leaf()) {
                 node->target_function_id = fi;
                 const double val_p = h_vec.dot(p);
-
 
                 // Leaf that is actually cut by h_vec -> split its polytope.
                 auto sp0 = clock::now();
@@ -484,9 +489,11 @@ public:
     // Only leaf nodes are appended to the result.
     std::vector<ITreeNode*> find_leaves_by_point(const Eigen::VectorXd& p,
                                                  ITreeNode* start = nullptr,
-                                                 bool verbose = false) const
+                                                 bool verbose = false)
     {
         std::vector<ITreeNode*> leaves;
+
+        using clock = std::chrono::high_resolution_clock;
 
         ITreeNode* s = start ? start : root.get();
         if (!s) return leaves;
@@ -536,8 +543,11 @@ public:
                 continue; // not a leaf => do not append
             }
 
+            auto sp2 = clock::now();
             const Eigen::VectorXd& h = (*global_planes)[hid - 1];
             const double val = h.dot(p);
+            auto sp3 = clock::now();
+            fc_time_ns_find_point += std::chrono::duration_cast<std::chrono::nanoseconds>(sp3 - sp2);
 
             if (verbose) {
                 std::println("[find_leaves_by_point] ptr={} hid={} val={:.6f}",
