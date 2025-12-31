@@ -96,7 +96,7 @@ This repository builds multiple executables (as defined in `CMakeLists.txt`).
 
 - **`ITreePloyCA`**
   - Sources: `ITreePloyCAMain.cpp`, `ITreePloyCA.h`, `PolytopeStructs.h`, `PolytopeOps.h`, `CompactIO.h`
-  - Purpose: ITree polytope-centric approach.
+  - Purpose: ITree polytope approach.
 
 - **`ITreePolyDomain`**
   - Sources: `ITreePolyDomainMain.cpp`, `ITreePolyDomain.h`, `PolytopeStructs.h`, `PolytopeOps.h`, `CompactIO.h`
