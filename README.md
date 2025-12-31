@@ -1,6 +1,6 @@
 # Fast Linear Function Sorting
 
-A C++ research codebase for **polytope-centric domain partitioning** and **function sorting** experiments (e.g., ITree / FsTree and on-demand variants). It also includes dataset generators and optional solvers (HiGHS Simplex, cddlib DDM).
+A C++ research codebase for **function sorting** experiments (e.g., ITree / FsTree and on-demand variants). It also includes dataset generators and optional solvers (HiGHS Simplex, cddlib DDM).
 
 > **Build system:** CMake  \
 > **C++ standard:** C++26 (`CMAKE_CXX_STANDARD = 26`)
