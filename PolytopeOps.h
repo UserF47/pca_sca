@@ -54,6 +54,51 @@ inline Polytope create_hypercube(int dim) {
     return cube;
 }
 
+// Create an axis-aligned hypercube [p, p+length]^dim
+// - `p_low` is the low (min) corner, size must be `dim`.
+// - `length` is the side length.
+// - Uses the same constraint-id convention as create_hypercube(int dim).
+inline Polytope create_input_domain_poly(int dim, const Eigen::VectorXd& p_low, double length) {
+    Polytope cube;
+    cube.dim = dim;
+    if (p_low.size() != dim) {
+        throw std::runtime_error("create_input_domain_poly: p_low.size() != dim");
+    }
+    size_t num_vertices = 1ULL << dim;
+
+    for (size_t i = 0; i < num_vertices; ++i) {
+        Eigen::VectorXd position(dim);
+        std::vector<int> plane_ids;
+        plane_ids.reserve(dim);
+
+        for (int k = 0; k < dim; ++k) {
+            bool is_upper_bound = (i >> k) & 1;
+            if (is_upper_bound) {
+                position[k] = p_low[k] + length;
+                plane_ids.push_back(-(2 * k + 2));
+            } else {
+                position[k] = p_low[k];
+                plane_ids.push_back(-(2 * k + 1));
+            }
+        }
+        std::sort(plane_ids.begin(), plane_ids.end());
+        cube.add_vertex(position, plane_ids);
+    }
+
+    int edge_id_counter = 0;
+    for (size_t i = 0; i < num_vertices; ++i) {
+        for (int k = 0; k < dim; ++k) {
+            int neighbor_idx = i ^ (1 << k);
+            if (i < static_cast<size_t>(neighbor_idx)) {
+                Edge e{edge_id_counter++, static_cast<int>(i), neighbor_idx};
+                cube.edges.push_back(e);
+            }
+        }
+    }
+
+    return cube;
+}
+
 inline void print_polytope(const Polytope& poly) {
     if (poly.vertices.empty()) {
         std::cout << "Empty Polytope\n";
@@ -140,6 +185,22 @@ inline int classify_polytope_against_plane(const Polytope& P, const Eigen::Vecto
     }
     if (has_pos && !has_neg) return 1;
     return -1;
+}
+
+inline int classify_polytope_against_plane_v2(const Polytope& P, const Eigen::VectorXd& H, double eps = 1e-9) {
+    bool has_pos = false, has_neg = false;
+    for (const auto& v : P.vertices) {
+        double d = H.dot(v.position);
+        if (d > eps) {
+            has_pos = true;
+        } else if (d < -eps) {
+            has_neg = true;
+        }
+        if (has_pos && has_neg) return 2;
+    }
+    if (has_pos && !has_neg) return 1;  // all on the positive side (or on a plane)
+    if (has_neg && !has_pos) return -1; // all on the negative side (or on a plane)
+    return 0;                            // all (approximately) on the plane
 }
 
 inline Polytope slice_polytope(const Polytope& P, const Eigen::VectorXd& H, int h_id) {

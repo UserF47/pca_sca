@@ -134,3 +134,36 @@ add_executable(FsTree
         FsTree.h
         CompactIO.h
 )
+
+## AddressSanitizer for FsTree
+#target_compile_options(FsTree PRIVATE
+#        -fsanitize=address
+#        -fno-omit-frame-pointer
+#)
+#
+#target_link_options(FsTree PRIVATE
+#        -fsanitize=address
+#)
+
+# --- Target 10: The OnDemand Function sorting Tree ---
+add_executable(FsTreeOnDemandPoint
+        FsTreeOnDemandMain.cpp
+        PolytopeStructs.h
+        PolytopeOps.h
+        FsTreeOnDemand.h
+        CompactIO.h
+)
+
+# --- Target 11: The OnDemand Function sorting Tree ---
+add_executable(FsTreeOnDemandDomain
+        FsTreeOnDemandDomainMain.cpp
+        PolytopeStructs.h
+        PolytopeOps.h
+        FsTreeOnDemandDomain.h
+        CompactIO.h
+)
+
+# --- Target 11: Sorting function by point ---
+add_executable(SimpleSortingFunctionsByPoint
+        SortFunctionPoint.cpp
+)

@@ -12,8 +12,13 @@
 #include "CompactIO.h"
 #include "PolytopeStructs.h"
 #include "PolytopeOps.h"
-#include "FsTree.h"
+#include "FsTreeOnDemand.h"
 #include "FunctionPairGenerator.h"
+
+#include <unordered_set>   // for highlight set
+#include <unordered_map>   // for DOT id mapping
+#include <cstdlib>         // for std::system
+
 
 int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
@@ -31,7 +36,7 @@ int main(int argc, char* argv[]) {
     namespace fs = std::filesystem;
 
     auto ensure_logs_dir = []() -> fs::path {
-        fs::path logs_dir = "logs_FsTree_Storage";
+        fs::path logs_dir = "logs_FsTree_OnDemand_point";
         std::error_code ec;
         fs::create_directories(logs_dir, ec);
         return logs_dir;
@@ -46,13 +51,13 @@ int main(int argc, char* argv[]) {
 
     // NEW: per-fi FC + relevant-leaf log
     fs::path perf_dir = ensure_logs_dir();
-    const std::string perf_base = std::format("FsTreePerf_FC_{}_{}", dim, n_functions);
+    const std::string perf_base = std::format("FsTreePerf_OnDemand_Point_{}_{}", dim, n_functions);
     fs::path perf_path = perf_dir / (perf_base + ".txt");
     std::ofstream perf_log(perf_path, std::ios::trunc);
     if (!perf_log) {
         throw std::runtime_error(std::format("Failed to open perf log file: {}", perf_path.string()));
     }
-    perf_log << "fi\tfc_sec\trelevant_leaves\n";
+    perf_log << "fi\tfc_sec\tfc_sec_2\n";
     perf_log.flush();
 
     std::println("==========================================");
@@ -110,75 +115,104 @@ int main(int argc, char* argv[]) {
 
         ITreeBuilder builder(root_poly);
         builder.global_planes = &planes;
-
-        const int bar_width = 50;
-        const std::size_t total_pairs = static_cast<std::size_t>(n_functions) * (static_cast<std::size_t>(n_functions) - 1) / 2;
-        std::size_t planes_inserted = 0;
-
-        // Insert in groups: {F1-related}, {F2-related}, ..., {Fn-related}
-        for (int fi = 1; fi <= n_functions; ++fi) {
-            builder.current_function_id = fi; // Fi is 1-based
-
-            // Fi-related hyperplanes are all pairwise planes (min(fi,fj), max(fi,fj)) for fj != fi
-
-            for (int fj = fi + 1; fj <= n_functions; ++fj) {
-                int a = fi;
-                int b = fj;
-
-                std::size_t plane_index = Generator::pair_index(a, b, n_functions);
-                // std::print("cur_index: {}\n", plane_index);
-
-                int unique_h_id = (int)plane_index + 1;
-
-                // Progress bar (over total pairs processed across all groups)
-                float progress = static_cast<float>(planes_inserted + 1) /
-                                 static_cast<float>(total_pairs);
-                int pos = static_cast<int>(bar_width * progress);
-
-                std::print("\r    Progress: [");
-                for (int j = 0; j < bar_width; ++j) {
-                    if (j < pos) std::print("=");
-                    else if (j == pos) std::print(">");
-                    else std::print(" ");
-                }
-                std::print("] {:.1f}% ({}/{})", progress * 100.0, planes_inserted + 1,
-                           total_pairs);
-                fflush(stdout);
-
-                // Skip if this plane does NOT partition the root polytope
-                int cls = classify_polytope_against_plane(root_poly, planes[plane_index]);
-                if (cls != 2) {
-                    planes_inserted++;
-                    continue;
-                }
-
-                // Group-aware insertion
-                builder.insert_dfs_non_recursive(root_poly, planes[plane_index], unique_h_id, fi, n_functions);
-                planes_inserted++;
-            }
-
-            // After finishing the Fi-group, mark all current leaf nodes as Fi-relevant if they are not relevant yet.
-            builder.mark_all_leaves_relevant(fi);
-            // const int relevant_leaves = builder.count_relevant_leaves();
-            // std::println("[Fi={}] relevant_leaves = {}", fi, relevant_leaves);
+        GroupPlan group_plan(n_functions);
+        std::unique_ptr<ITreeNode>::pointer current_node = builder.root.get();
+        current_node->is_on_path = true;
 
 
-            // Per-fi performance snapshot: cumulative FC time + current relevant leaves
-            // {
-            //     const double fc_sec = builder.get_fc_time_sec();
-            //     const int relevant_leaves = builder.count_relevant_leaves();
-            //     perf_log << std::format("{}\t{:.6f}\t{}\n", fi, fc_sec, relevant_leaves);
-            //     perf_log.flush();
-            // }
-        }
+        // planes is std::vector<Eigen::VectorXd>
+        Eigen::VectorXd p = Eigen::VectorXd::Constant(planes.front().size(), 0.5);
+        Eigen::VectorXd p2 = Eigen::VectorXd::Constant(planes.front().size(), 0.5);
+
+        run_grouped_insertion(n_functions, group_plan, builder, root_poly, current_node, p);
+
+        // auto res = builder.export_tree_to_pdf("tree.pdf");                 // whole tree
+
+        // Clear old path marks and locate the subtree root for the same point p.
+        // builder.reset_on_path_flags();
+        auto leaves = builder.find_leaves_by_point(p2, builder.root.get(), /*verbose=*/false);
+
+        // std::unordered_set<const ITreeNode*> hi;
+        // hi.reserve(leaves.size());
+        // for (auto* x : leaves) hi.insert(x);
+        //
+        // // builder.export_tree_to_pdf("tree_highlight.pdf", builder.root.get(), hi);
+        //
+        // std::println("Returned leaf nodes: {}", leaves.size());
+
+        int idx = 0;
+        // for (ITreeNode* n : leaves) {
+        //     bool all_empty = true;
+        //     for (const auto& grp : n->group_plan) {
+        //         if (!grp.empty()) {
+        //             all_empty = false;
+        //             break;
+        //         }
+        //     }
+        //
+        //     std::println(
+        //         "\n[Leaf {}] ptr={}  target_fi={}  is_relevant={}  group_plan_all_empty={}",
+        //         idx++,
+        //         static_cast<const void*>(n),
+        //         n->target_function_id,
+        //         n->is_relevant_leaf,
+        //         all_empty
+        //     );
+        //
+        //     // If NOT empty, print group plan in detail
+        //     if (!all_empty) {
+        //         std::println("  group_plan details:");
+        //         for (std::size_t fi = 1; fi < n->group_plan.size(); ++fi) {
+        //             const auto& lst = n->group_plan[fi];
+        //             if (!lst.empty()) {
+        //                 std::print("    Fi {} -> {} plane ids: ", fi, lst.size());
+        //                 for (std::size_t j = 0; j < lst.size(); ++j) {
+        //                     std::print("{}{}", lst[j], (j + 1 < lst.size() ? ", " : ""));
+        //                 }
+        //                 std::println("");
+        //             }
+        //         }
+        //     }
+        // }
+
+
+        // std::println("Returned leaf nodes: {}", leaves.size());
+        //
+        // idx = 0;
+        // for (ITreeNode* n : leaves) {
+        //     bool all_empty = true;
+        //     for (const auto& grp : n->group_plan) {
+        //         if (!grp.empty()) {
+        //             all_empty = false;
+        //             break;
+        //         }
+        //     }
+        //
+        //     std::println(
+        //         "\n[Leaf {}] ptr={}  target_fi={}  is_relevant={}  group_plan_all_empty={}",
+        //         idx++,
+        //         static_cast<const void*>(n),
+        //         n->target_function_id,
+        //         n->is_relevant_leaf,
+        //         all_empty
+        //     );
+        //
+        //     // If NOT empty, print group plan in detail
+        //     if (!all_empty) {
+        //         std::println("  group_plan details:");
+        //         GroupPlan gp(0);
+        //         gp.fi_to_planes = n->group_plan;
+        //         run_grouped_insertion(n_functions, gp, builder, n->poly, n, p2);
+        //     }
+        // }
+
 
         double fc_sec = builder.get_fc_time_sec();
-        int relevant_leaves = builder.count_relevant_leaves();
-        perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec, relevant_leaves);
+        double second_find_point_sec = builder.get_fc_time_find_point_sec();
+        int relevant_leaves = builder.count_relevant_nodes();
+        perf_log << std::format("{}\t{:.6f}\t{}\n", n_functions, fc_sec, second_find_point_sec);
         perf_log.flush();
 
-        std::println("\r    Comparisons {}/{}... Done.", planes_inserted,
-                     total_pairs);
 
         auto t3 = std::chrono::high_resolution_clock::now();
 

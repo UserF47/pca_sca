@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     namespace fs = std::filesystem;
 
     auto ensure_logs_dir = []() -> fs::path {
-        fs::path logs_dir = "logs";
+        fs::path logs_dir = "logs_FsTree_Storage";
         std::error_code ec;
         fs::create_directories(logs_dir, ec);
         return logs_dir;
@@ -127,19 +127,22 @@ int main(int argc, char* argv[]) {
                 continue;
             }
 
+            // std::print("cur_index: {}\n", i);
+            // if (i >= 99) {break;}
+
             // Insert plane (counts as one processed insertion)
             builder.insert_dfs_non_recursive(root_poly, planes[i], unique_h_id);
             processed += 1;
 
             // FC checkpoint every 50 processed insertions: "<processed>\t<fc_time_sec>\t<leaf_nodes>"
-            if (processed % 5 == 0) {
-                const auto leaf_now = builder.count_leaves();
-                fc_log << std::format("{}\t{:.6f}\t{}\n",
-                                      processed,
-                                      builder.get_fc_time_sec(),
-                                      leaf_now);
-                fc_log.flush();
-            }
+            // if (i % 10 == 0) {
+            //     const auto leaf_now = builder.count_leaves();
+            //     fc_log << std::format("{}\t{:.6f}\t{}\n",
+            //                           i,
+            //                           builder.get_fc_time_sec(),
+            //                           leaf_now);
+            //     fc_log.flush();
+            // }
 
             // Scale checkpoints based on elapsed minutes
             auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(
@@ -171,41 +174,47 @@ int main(int argc, char* argv[]) {
             }
             */
 
-            // Keep your periodic tree stats logging (every 1000 raw planes seen)
-            if ((i + 1) % 1000 == 0) {
-                auto t_now = std::chrono::high_resolution_clock::now();
-                double elapsed_sec = std::chrono::duration<double>(t_now - t2).count();
-
-                auto total_nodes = builder.count_nodes();
-                auto leaf_cells  = builder.count_leaves();
-                auto depth       = builder.compute_depth();
-
-                std::println("\n\n=== Results after {} raw planes ===", (int)i + 1);
-                std::println("Time:         {:.4f} s", elapsed_sec);
-                std::println("Total Nodes:  {}", total_nodes);
-                std::println("Leaf Cells:   {}", leaf_cells);
-                std::println("Tree Depth:   {}", depth);
-
-                log << std::format("=== Results after {} raw planes ===\n", (int)i + 1);
-                log << std::format("Time:         {:.4f} s\n", elapsed_sec);
-                log << std::format("Total Nodes:  {}\n", total_nodes);
-                log << std::format("Leaf Cells:   {}\n", leaf_cells);
-                log << std::format("Tree Depth:   {}\n\n", depth);
-                log.flush();
-            }
+            // // Keep your periodic tree stats logging (every 1000 raw planes seen)
+            // if ((i + 1) % 1000 == 0) {
+            //     auto t_now = std::chrono::high_resolution_clock::now();
+            //     double elapsed_sec = std::chrono::duration<double>(t_now - t2).count();
+            //
+            //     auto total_nodes = builder.count_nodes();
+            //     auto leaf_cells  = builder.count_leaves();
+            //     auto depth       = builder.compute_depth();
+            //
+            //     std::println("\n\n=== Results after {} raw planes ===", (int)i + 1);
+            //     std::println("Time:         {:.4f} s", elapsed_sec);
+            //     std::println("Total Nodes:  {}", total_nodes);
+            //     std::println("Leaf Cells:   {}", leaf_cells);
+            //     std::println("Tree Depth:   {}", depth);
+            //
+            //     log << std::format("=== Results after {} raw planes ===\n", (int)i + 1);
+            //     log << std::format("Time:         {:.4f} s\n", elapsed_sec);
+            //     log << std::format("Total Nodes:  {}\n", total_nodes);
+            //     log << std::format("Leaf Cells:   {}\n", leaf_cells);
+            //     log << std::format("Tree Depth:   {}\n\n", depth);
+            //     log.flush();
+            // }
         }
 
         std::println("");
 
         // Final FC checkpoint if we ended not on a multiple of 50
-        if (processed > 0 && processed % 50 != 0) {
-            const auto leaf_now = builder.count_leaves();
-            fc_log << std::format("{}\t{:.6f}\t{}\n",
-                                  processed,
-                                  builder.get_fc_time_sec(),
-                                  leaf_now);
-            fc_log.flush();
-        }
+        // if (processed > 0 && processed % 50 != 0) {
+        //     const auto leaf_now = builder.count_leaves();
+        //     fc_log << std::format("{}\t{:.6f}\t{}\n",
+        //                           processed,
+        //                           builder.get_fc_time_sec(),
+        //                           leaf_now);
+        //     fc_log.flush();
+        // }
+        const auto leaf_now = builder.count_leaves();
+        fc_log << std::format("{}\t{:.6f}\t{}\n",
+                              planes.size(),
+                              builder.get_fc_time_sec(),
+                              leaf_now);
+        fc_log.flush();
         fc_log.close();
         scale_log.close();
 
