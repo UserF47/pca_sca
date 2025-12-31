@@ -6,9 +6,10 @@ from matplotlib.ticker import LogLocator, LogFormatterMathtext
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 24
-TICK_FS  = 24
+LABEL_FS = 26
+TICK_FS  = 26
 LEGEND_FS = 20
+
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -20,6 +21,12 @@ plt.rcParams.update({
     "legend.fontsize": LEGEND_FS,
     "axes.linewidth": 1.0,
 })
+
+# Label mapping for plot legends
+LABEL_MAP = {
+    "Baseline": "Basic",
+    "IPA": "IPA",
+}
 
 def parse_existing_ipa(path: str):
     """
@@ -82,7 +89,7 @@ def plot_time_vs_dimension_at_intersections(data, target_intersections: int, out
       y-axis: time (seconds), log10
       Compare Existing vs IPA
     """
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     dims = sorted(set(data[ "Baseline"].keys()) | set(data["IPA"].keys()))
 
@@ -101,7 +108,7 @@ def plot_time_vs_dimension_at_intersections(data, target_intersections: int, out
             xs.append(d)
             ys.append(t if t > 0 else 1e-12)
         if xs:
-            ax.plot(xs, ys, marker="o", linewidth=2, label=method)
+            ax.plot(xs, ys, marker="o", linewidth=2, label=LABEL_MAP.get(method, method))
 
     ax.set_xlabel("Dimension(#intersection=2500)")
     ax.set_ylabel("Time (seconds)")
@@ -121,7 +128,7 @@ def plot_time_vs_intersections_at_dim(data, target_dim: int, outpath: str):
       y-axis: time (seconds), log10
       Compare Existing vs IPA
     """
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     for method in [ "Baseline", "IPA"]:
         pts = data.get(method, {}).get(target_dim, [])
@@ -129,7 +136,7 @@ def plot_time_vs_intersections_at_dim(data, target_dim: int, outpath: str):
             continue
         xs = [i for i, _ in pts]
         ys = [t if t > 0 else 1e-12 for _, t in pts]
-        ax.plot(xs, ys, marker="o", linewidth=2, label=method)
+        ax.plot(xs, ys, marker="o", linewidth=2, label=LABEL_MAP.get(method, method))
 
     ax.set_xlabel("#Intersections(dim=4)")
     ax.set_ylabel("Time (seconds)")

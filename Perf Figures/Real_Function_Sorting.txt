@@ -1,0 +1,22 @@
+Comparing method: I-tree; Fs-Tree
+
+#dimension = 2
+I-tree
+Storage = 2423
+
+Fs-Tree
+Storage = 4019
+
+#dimension = 3
+I-tree
+Storage = 2819948
+
+Fs-Tree
+Storage = 1233674
+
+#dimension = 4
+I-tree
+Storage = 2689569614
+
+Fs-Tree
+Storage = 311423976

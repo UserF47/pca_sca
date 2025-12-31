@@ -6,8 +6,8 @@ from matplotlib.ticker import LogLocator, LogFormatterMathtext
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 24
-TICK_FS  = 24
+LABEL_FS = 26
+TICK_FS  = 26
 LEGEND_FS = 20
 
 plt.rcParams.update({
@@ -73,6 +73,18 @@ def parse_scale_file(path: str):
 
     return data
 
+def annotate_points(ax, xs, ys, fontsize=16):
+    for x, y in zip(xs, ys):
+        ax.annotate(
+            f"{y}",
+            (x, y),
+            textcoords="offset points",
+            xytext=(0, 6),
+            ha="center",
+            fontsize=fontsize,
+            clip_on=True
+        )
+
 def main():
     infile = "Domain_Existing_IPA_Scale.txt"
     if not os.path.exists(infile):
@@ -84,13 +96,14 @@ def main():
     data = parse_scale_file(infile)
 
     LABEL_MAP = {
-        ("Baseline", 3): "Baseline(3d)",
-        ("Baseline", 4): "Baseline(4d)",
-        ("IPA",      3): "IPA(3d)",
-        ("IPA",      4): "IPA(4d)",
+        ("Baseline", 3): "Basic (3D)",
+        ("Baseline", 4): "Basic (4D)",
+        ("IPA",      3): "IPA (3D)",
+        ("IPA",      4): "IPA (4D)",
     }
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
+    all_ys = []
 
     for (method, dim), label in LABEL_MAP.items():
         time_to_inter = data.get(method, {}).get(dim, {})
@@ -101,6 +114,8 @@ def main():
                 ys.append(time_to_inter[t])  # y = intersections
         if xs:
             ax.plot(xs, ys, marker="o", linewidth=2, label=label)
+            annotate_points(ax, xs, ys)
+            all_ys.extend(ys)
 
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("#Intersections")
@@ -110,6 +125,9 @@ def main():
     ax.set_yscale("log", base=10)
     ax.yaxis.set_major_locator(LogLocator(base=10))
     ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))
+
+    if all_ys:
+        ax.set_ylim(top=max(all_ys) * 1.3)
 
     # Optional minor ticks (visual guidance)
     ax.yaxis.set_minor_locator(LogLocator(base=10, subs=(2, 3, 4, 5, 6, 7, 8, 9)))

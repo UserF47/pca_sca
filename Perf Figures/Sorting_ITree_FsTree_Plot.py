@@ -7,8 +7,8 @@ from matplotlib.ticker import LogLocator, LogFormatterMathtext
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 24
-TICK_FS  = 24
+LABEL_FS = 26
+TICK_FS  = 26
 LEGEND_FS = 20
 
 plt.rcParams.update({
@@ -108,7 +108,7 @@ def compute_storage_mb(method: str, n_funcs: int, size_ints: int) -> float:
     return bytes_used / BYTES_PER_MB
 
 def plot_time_vs_functions(data, outpath: str):
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     # order in legend
     series = [
@@ -138,7 +138,7 @@ def plot_time_vs_functions(data, outpath: str):
     plt.close(fig)
 
 def plot_storage_vs_functions(data, outpath: str):
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     series = [
         ("ITree", 2, "I-tree(2d)"),

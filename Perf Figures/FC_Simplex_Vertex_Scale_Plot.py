@@ -6,8 +6,8 @@ from matplotlib.ticker import LogLocator, LogFormatterMathtext
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 24
-TICK_FS  = 24
+LABEL_FS = 26
+TICK_FS  = 26
 LEGEND_FS = 20
 
 plt.rcParams.update({
@@ -22,6 +22,25 @@ plt.rcParams.update({
 })
 
 TARGET_TIMES = [10, 20, 30, 40, 50]
+
+def annotate_points(ax, xs, ys, fontsize=16, skip_x=None):
+    """
+    Annotate data points on a log-scale y-axis.
+    """
+    if skip_x is None:
+        skip_x = set()
+    for x, y in zip(xs, ys):
+        if x in skip_x:
+            continue
+        ax.annotate(
+            f"{y}",
+            (x, y),
+            textcoords="offset points",
+            xytext=(0, 6),   # vertical offset (works well for log scale)
+            ha="center",
+            fontsize=fontsize,
+            clip_on=True
+        )
 
 def parse_scale_file(path: str):
     """
@@ -96,7 +115,8 @@ def main():
         ("Vertex",  4): "Vertex(4d)",
     }
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
+    all_ys = []
 
     for (method, dim), label in LABEL_MAP.items():
         time_to_inter = data.get(method, {}).get(dim, {})
@@ -106,10 +126,14 @@ def main():
             if t in time_to_inter:
                 xs.append(t)                 # x = time (minutes)
                 ys.append(time_to_inter[t])  # y = intersections
+                all_ys.append(time_to_inter[t])
 
         if xs:
             ax.plot(xs, ys, marker="o", linewidth=2, label=label)
-
+            if method == "Vertex" and dim == 3:
+                annotate_points(ax, xs, ys, skip_x={50})
+            else:
+                annotate_points(ax, xs, ys)
     # Axes
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("#Intersections")
@@ -121,10 +145,11 @@ def main():
     ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))
 
     ax.yaxis.set_minor_locator(
-        LogLocator(base=10, subs=(2, 3, 4))
+        LogLocator(base=10, subs=(2, 3, 4, 5, 6, 7, 8, 9))
     )
 
-    ax.set_ylim(bottom=100)
+    y_max = max(all_ys) if all_ys else 100
+    ax.set_ylim(bottom=100, top=y_max * 1.35)
 
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)
     ax.legend(frameon=True)

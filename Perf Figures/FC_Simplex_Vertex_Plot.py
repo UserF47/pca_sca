@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 # =========================
 # Global paper settings
 # =========================
-LABEL_FS = 24
-TICK_FS  = 24
+LABEL_FS = 26
+TICK_FS  = 26
 LEGEND_FS = 20
 
 plt.rcParams.update({
@@ -84,7 +84,7 @@ def plot_fig1_time_vs_intersections_dim3(data, outpath: str):
     Figure 1: feasibility checking time vs #intersections (dim=3)
     - y: minutes (log scale)
     """
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     dim = 3
     for method in ["Simplex", "Vertex"]:
@@ -100,7 +100,7 @@ def plot_fig1_time_vs_intersections_dim3(data, outpath: str):
         ax.plot(xs, ys, marker="o", linewidth=2, label=method)
 
     ax.set_xlabel("#Intersections(dim=3)")
-    ax.set_ylabel("Time (min)")
+    ax.set_ylabel("Time (minutes)")
     ax.set_yscale("log")
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)
     ax.legend(frameon=True)
@@ -113,7 +113,7 @@ def plot_fig2_time_vs_dimension_inter300(data, outpath: str):
     Figure 2: feasibility checking time vs #dimension (#intersection=300)
     - y: minutes (log scale)
     """
-    fig, ax = plt.subplots(figsize=(7.5, 5.2), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5), constrained_layout=True)
 
     target_intersections = 300
     dims = sorted(set(data.get("Simplex", {}).keys()) | set(data.get("Vertex", {}).keys()))
@@ -140,7 +140,7 @@ def plot_fig2_time_vs_dimension_inter300(data, outpath: str):
             ax.plot(xs, ys, marker="o", linewidth=2, label=method)
 
     ax.set_xlabel("Dimension(#intersection=300)")
-    ax.set_ylabel("Time (min)")
+    ax.set_ylabel("Time (minutes)")
     ax.set_yscale("log")
     ax.set_xticks(dims)  # show integer dimensions
     ax.grid(True, which="major", linewidth=0.6, alpha=0.35)
