@@ -1,2 +1,0 @@
-fi	fc_sec	relevant_leaves
-10000	43.079716	9
